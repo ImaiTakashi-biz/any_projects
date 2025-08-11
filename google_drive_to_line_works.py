@@ -764,7 +764,7 @@ def send_file_to_lineworks(file_id=None):
 
         # 4. ファイルメッセージを送信
         print("\n=== ファイルメッセージ送信 ===")
-        room_id = "c2439c31-e199-3cd3-53a5-5a3c513ad9cd"  # 全社トークルームのID
+        room_id = "6d53f79a-ba39-e9d5-cf52-07ddd58d66cf"  # 全社トークルームのID
         # 6d53f79a-ba39-e9d5-cf52-07ddd58d66cf
         success = send_file_message(access_token, room_id, file_id, file_name)
 
