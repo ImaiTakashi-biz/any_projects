@@ -1,0 +1,9 @@
+# created by virtualenv automatically
+# *
+*.json
+private_20250722104854.key
+.venv/
+dist/
+
+.env
+
