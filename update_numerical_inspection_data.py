@@ -57,6 +57,7 @@ COLUMN_MAPPING = {
     'cleaning_instruction': '洗浄指示',
     'acquisition_date': '指示日',
     'material_id': '材料識別',
+    'notes': '備考',
     'product_master_relation': 'DB_数値検査製品マスター'  # リレーション用
 }
 
@@ -156,7 +157,7 @@ def get_today_data_from_sqlite():
         # 今日の日付に一致するデータを取得
         # テーブルに必要なカラムがあるか確認
         required_columns = ['id', 'machine_no', 'customer_name', 'part_number', 'product_name', 
-                           'cleaning_instruction', 'acquisition_date', 'material_id']
+                           'cleaning_instruction', 'acquisition_date', 'material_id', 'notes']
         available_columns = [col[1] for col in table_info]
         
         # 必要なカラムがあるか確認
@@ -410,8 +411,12 @@ def update_notion_database(data_list):
                                 }]
                             }
                         elif prop_type == 'rich_text':
+                            # rich_textプロパティの場合（notes/備考等）
+                            text_content = ""
+                            if value is not None and str(value).strip() != "" and str(value).upper() != "NULL":
+                                text_content = str(value)
                             properties[notion_col] = {
-                                "rich_text": [{"text": {"content": str(value)}}]
+                                "rich_text": [{"text": {"content": text_content}}]
                             }
                         elif prop_type == 'number':
                             if isinstance(value, (int, float)) or str(value).isdigit():
