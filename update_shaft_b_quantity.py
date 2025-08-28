@@ -18,12 +18,45 @@ load_dotenv()
 # ・imai@araiseimitsu.onmicrosoft.com
 # ・n.kizaki@araiseimitsu.onmicrosoft.com
 
+# --- Google API設定 ---
+GOOGLE_SERVICE_ACCOUNT_KEY_FILE = os.getenv("GOOGLE_SERVICE_ACCOUNT_KEY_FILE")
+
 # --- メール通知用の設定 ---
 EMAIL_SENDER = os.getenv("EMAIL_SENDER")
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 EMAIL_RECEIVERS = os.getenv("EMAIL_RECEIVERS", "").split(",") if os.getenv("EMAIL_RECEIVERS") else []
 SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.office365.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+
+# Google API設定の存在確認
+if not GOOGLE_SERVICE_ACCOUNT_KEY_FILE:
+    raise ValueError("GOOGLE_SERVICE_ACCOUNT_KEY_FILE が .env ファイルに設定されていません")
+
+# Google API認証ファイルパスの解決（環境非依存）
+def resolve_google_api_key_file(filename):
+    """
+    Google API認証ファイルのパスを環境非依存で解決する
+    """
+    # 1. 現在の作業ディレクトリからの相対パス
+    if os.path.exists(filename):
+        return os.path.abspath(filename)
+    
+    # 2. スクリプトと同じディレクトリ
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    script_relative_path = os.path.join(script_dir, filename)
+    if os.path.exists(script_relative_path):
+        return script_relative_path
+    
+    # 3. ファイルが見つからない場合
+    raise FileNotFoundError(
+        f"Google API認証ファイルが見つかりません: {filename}\n"
+        f"検索パス:\n"
+        f"  - 現在の作業ディレクトリ: {os.path.abspath(filename)}\n"
+        f"  - スクリプトディレクトリ: {script_relative_path}"
+    )
+
+# Google API認証ファイルパスを解決
+RESOLVED_GOOGLE_API_KEY_FILE = resolve_google_api_key_file(GOOGLE_SERVICE_ACCOUNT_KEY_FILE)
 
 # メール設定の存在確認
 if not EMAIL_SENDER:
@@ -129,7 +162,7 @@ try:
         "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive"
     ]
-    creds = ServiceAccountCredentials.from_json_keyfile_name('aptest-384703-24764f69b34f.json', scope)
+    creds = ServiceAccountCredentials.from_json_keyfile_name(RESOLVED_GOOGLE_API_KEY_FILE, scope)
     client = gspread.authorize(creds)
     sh = client.open_by_key("1Zb9jVKffZGx5PQ6wh6CGSioiJOAx_x3DX2AS7zrCd5Y").worksheet("シャフトB進捗表")
 

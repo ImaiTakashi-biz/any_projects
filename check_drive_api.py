@@ -8,9 +8,13 @@ import json
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+from dotenv import load_dotenv
+
+# .envファイルから環境変数を読み込み
+load_dotenv()
 
 # 設定
-GOOGLE_SERVICE_ACCOUNT_FILE = "aptest-384703-24764f69b34f.json"
+GOOGLE_SERVICE_ACCOUNT_FILE = os.getenv("GOOGLE_SERVICE_ACCOUNT_KEY_FILE", "aptest-384703-24764f69b34f.json")
 GOOGLE_DRIVE_SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
 
 def check_service_account_info():

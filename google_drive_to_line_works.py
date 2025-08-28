@@ -101,7 +101,7 @@ service_account = os.getenv("LINE_WORKS_SERVICE_ACCOUNT", "2z1nf.serviceaccount@
 private_key_path = Path(os.getenv("LINE_WORKS_PRIVATE_KEY_PATH", "private_20250722104854.key"))
 
 # Google Drive設定
-GOOGLE_SERVICE_ACCOUNT_FILE = os.getenv("GOOGLE_SERVICE_ACCOUNT_FILE", "aptest-384703-24764f69b34f.json")
+GOOGLE_SERVICE_ACCOUNT_FILE = os.getenv("GOOGLE_SERVICE_ACCOUNT_KEY_FILE", "aptest-384703-24764f69b34f.json")
 GOOGLE_DRIVE_SCOPES = [
     'https://www.googleapis.com/auth/drive'  # フルアクセス（読み取り、書き込み、削除）
 ]
