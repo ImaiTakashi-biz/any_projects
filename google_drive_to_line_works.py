@@ -14,6 +14,10 @@ import sys
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
+from dotenv import load_dotenv
+
+# .envファイルから環境変数を読み込み
+load_dotenv()
 
 # psutilのオプショナルインポート
 try:
@@ -28,15 +32,19 @@ except ImportError:
 # ・takada@araiseimitsu.onmicrosoft.com
 # ・imai@araiseimitsu.onmicrosoft.com
 # ・n.kizaki@araiseimitsu.onmicrosoft.com
-EMAIL_SENDER = "imai@araiseimitsu.onmicrosoft.com"
-EMAIL_PASSWORD = "Arai267786"
-EMAIL_RECEIVERS = [
-    "takada@araiseimitsu.onmicrosoft.com",
-    "imai@araiseimitsu.onmicrosoft.com",
-    "n.kizaki@araiseimitsu.onmicrosoft.com"
-]
-SMTP_SERVER = "smtp.office365.com"
-SMTP_PORT = 587
+EMAIL_SENDER = os.getenv("EMAIL_SENDER")
+EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
+EMAIL_RECEIVERS = os.getenv("EMAIL_RECEIVERS", "").split(",") if os.getenv("EMAIL_RECEIVERS") else []
+SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.office365.com")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+
+# メール設定の存在確認
+if not EMAIL_SENDER:
+    raise ValueError("EMAIL_SENDER が .env ファイルに設定されていません")
+if not EMAIL_PASSWORD:
+    raise ValueError("EMAIL_PASSWORD が .env ファイルに設定されていません")
+if not EMAIL_RECEIVERS:
+    raise ValueError("EMAIL_RECEIVERS が .env ファイルに設定されていません")
 
 def send_error_email(error_info):
     """
