@@ -58,7 +58,7 @@ COLUMN_MAPPING = {
     'acquisition_date': '指示日',
     'material_id': '材料識別',
     'notes': '備考',
-    'product_master_relation': 'DB_数値検査製品マスター'  # リレーション用
+    'inspection_time': '検査時間(分)'  # 製品マスターから取得
 }
 
 
@@ -234,9 +234,9 @@ def get_today_data_from_sqlite():
         raise Exception(error_msg)
 
 
-def get_product_master_id_by_part_number(notion, part_number):
+def get_inspection_time_by_part_number(notion, part_number):
     """
-    製品マスターデータベースから品番に基づいてページIDを取得する
+    製品マスターデータベースから品番に基づいて検査時間(分)を取得する
     """
     try:
         if not part_number or part_number == '':
@@ -256,15 +256,27 @@ def get_product_master_id_by_part_number(notion, part_number):
         )
         
         if results['results']:
-            page_id = results['results'][0]['id']
-            print(f"✅ 品番 '{part_number}' の製品マスターIDを取得しました: {page_id}")
-            return page_id
+            page = results['results'][0]
+            # 検査時間(分)プロパティから値を取得
+            inspection_time_prop = page['properties'].get('検査時間(分)', {})
+            
+            if inspection_time_prop.get('type') == 'number':
+                inspection_time = inspection_time_prop.get('number')
+                if inspection_time is not None:
+                    print(f"✅ 品番 '{part_number}' の検査時間を取得しました: {inspection_time}分")
+                    return inspection_time
+                else:
+                    print(f"⚠️ 品番 '{part_number}' の検査時間は空欄です")
+                    return None
+            else:
+                print(f"⚠️ 品番 '{part_number}' の検査時間(分)プロパティが数値型ではありません")
+                return None
         else:
             print(f"⚠️ 品番 '{part_number}' は製品マスターで見つかりませんでした")
             return None
             
     except Exception as e:
-        print(f"❌ 製品マスターID取得エラー (part_number: {part_number}): {e}")
+        print(f"❌ 検査時間取得エラー (part_number: {part_number}): {e}")
         return None
 
 
@@ -370,29 +382,36 @@ def update_notion_database(data_list):
         
         for data in data_list:
             try:
-                # 製品マスターから品番に基づいてIDを取得（エラーがあっても継続）
+                # 製品マスターから品番に基づいて検査時間を取得（エラーがあっても継続）
                 part_number = data.get('part_number', '')
-                product_master_id = None
+                inspection_time = None
                 try:
-                    product_master_id = get_product_master_id_by_part_number(notion, part_number)
+                    inspection_time = get_inspection_time_by_part_number(notion, part_number)
                 except Exception as master_error:
-                    print(f"⚠️ 製品マスターID取得でエラーが発生しましたが、処理を継続します: {master_error}")
+                    print(f"⚠️ 検査時間取得でエラーが発生しましたが、処理を継続します: {master_error}")
+                
+                # 検査時間をdataに追加
+                data['inspection_time'] = inspection_time
                 
                 # Notionページのプロパティを構築
                 properties = {}
                 
                 # 全てのフィールドをマッピング（IDも含む）
                 for sqlite_col, notion_col in COLUMN_MAPPING.items():
-                    # リレーション用の特殊処理
-                    if sqlite_col == 'product_master_relation':
-                        if product_master_id and notion_col in database['properties']:
+                    # inspection_timeの特殊処理
+                    if sqlite_col == 'inspection_time':
+                        if notion_col in database['properties']:
                             prop_type = database['properties'][notion_col]['type']
-                            if prop_type == 'relation':
-                                properties[notion_col] = {
-                                    "relation": [{"id": product_master_id}]
-                                }
+                            if prop_type == 'number':
+                                inspection_time_value = data.get('inspection_time')
+                                if inspection_time_value is not None:
+                                    properties[notion_col] = {
+                                        "number": inspection_time_value
+                                    }
+                                else:
+                                    properties[notion_col] = {"number": None}  # 空欄
                             else:
-                                print(f"⚠️ {notion_col}はリレーションプロパティではありません: {prop_type}")
+                                print(f"⚠️ {notion_col}は数値プロパティではありません: {prop_type}")
                         continue
                     
                     value = data.get(sqlite_col, '')
