@@ -832,8 +832,8 @@ def get_access_token():
         print(error_msg)
         send_error_email(f"LINE WORKS認証エラー:\n{error_msg}")
         return None
-    except jwt.InvalidKeyError:
-        error_msg = "秘密鍵が無効です。正しい秘密鍵ファイルを確認してください"
+    except (AttributeError, ValueError, jwt.InvalidSignatureError, jwt.InvalidKeyError) as e:
+        error_msg = f"JWT生成エラー: {str(e)}"
         print(error_msg)
         send_error_email(f"LINE WORKS認証エラー:\n{error_msg}")
         return None
