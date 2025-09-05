@@ -127,7 +127,8 @@ try:
     sh1 = ws.worksheet("稼働中材料管理表")
 
     file_pass = r"\\192.168.1.200\共有\生産管理課\セット予定表.xlsx"
-    wb1 = openpyxl.load_workbook(file_pass, read_only=True)
+    # wb1 = openpyxl.load_workbook(file_pass, read_only=True)
+    wb1 = openpyxl.load_workbook(file_pass, read_only=True, keep_links=False)
     ws1 = wb1["生産中"]
     last_row = ws1.max_row
 
