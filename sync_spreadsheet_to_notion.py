@@ -3,6 +3,8 @@ import gspread
 from google.oauth2 import service_account
 from dotenv import load_dotenv
 from notion_client import Client
+import smtplib
+from email.mime.text import MIMEText
 
 load_dotenv()
 
@@ -14,6 +16,13 @@ GOOGLE_SERVICE_ACCOUNT_KEY_FILE = os.getenv("GOOGLE_SERVICE_ACCOUNT_KEY_FILE")
 NOTION_API_TOKEN = os.getenv("NOTION_API_TOKEN")
 NOTION_DATABASE_ID = "26c37bffefe88036b55dcb86a9342cc6"
 
+# メール通知設定
+EMAIL_SENDER = os.getenv("EMAIL_SENDER")
+EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
+EMAIL_RECEIVERS = os.getenv("EMAIL_RECEIVERS", "").split(",") if os.getenv("EMAIL_RECEIVERS") else []
+SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.office365.com")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+
 # Google API設定の存在確認
 if not GOOGLE_SERVICE_ACCOUNT_KEY_FILE:
     raise ValueError("GOOGLE_SERVICE_ACCOUNT_KEY_FILE が .env ファイルに設定されていません")
@@ -21,6 +30,10 @@ if not GOOGLE_SERVICE_ACCOUNT_KEY_FILE:
 # Notion API設定の存在確認
 if not NOTION_API_TOKEN:
     raise ValueError("NOTION_API_TOKEN が .env ファイルに設定されていません")
+
+# メール通知設定の存在確認 (送信者とパスワードは必須)
+if not EMAIL_SENDER or not EMAIL_PASSWORD:
+    print("警告: メール通知設定 (EMAIL_SENDER, EMAIL_PASSWORD) が不完全です。エラー通知は送信されません。")
 
 # Google API認証ファイルパスの解決（環境非依存）
 def resolve_google_api_key_file(filename):
@@ -44,6 +57,26 @@ def resolve_google_api_key_file(filename):
         f"  - 現在の作業ディレクトリ: {os.path.abspath(filename)}\n"
         f"  - スクリプトディレクトリ: {script_relative_path}"
     )
+
+# エラー通知メール送信関数
+def send_error_notification(subject, body):
+    if not EMAIL_SENDER or not EMAIL_PASSWORD or not EMAIL_RECEIVERS:
+        print("エラー通知メールは送信されませんでした: メール設定が不完全です。")
+        return
+
+    msg = MIMEText(body, 'plain', 'utf-8')
+    msg['Subject'] = subject
+    msg['From'] = EMAIL_SENDER
+    msg['To'] = ', '.join(EMAIL_RECEIVERS)
+
+    try:
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()
+            server.login(EMAIL_SENDER, EMAIL_PASSWORD)
+            server.send_message(msg)
+        print(f"エラー通知メールを送信しました: {subject}")
+    except Exception as e:
+        print(f"エラー通知メールの送信中にエラーが発生しました: {e}")
 
 # Google API認証ファイルパスを解決
 RESOLVED_GOOGLE_API_KEY_FILE = resolve_google_api_key_file(GOOGLE_SERVICE_ACCOUNT_KEY_FILE)
@@ -117,7 +150,7 @@ try:
         arrow = '=' * int(round(progress * bar_length) - 1) + '>'
         spaces = ' ' * (bar_length - len(arrow))
         # 緑色に設定し、バーとパーセンテージを表示、最後に色をリセット
-        print(f"\r[\u001b[92m{i+1}/{total_items}\u001b[0m] \u001b[92m{int(progress * 100)}%\u001b[0m [\u001b[92m{arrow}{spaces}\u001b[0m]", end='')
+        print(f"\r\033[92m{i+1}/{total_items}\033[0m] \033[92m{int(progress * 100)}%\033[0m [\033[92m{arrow}{spaces}\033[0m]", end='')
 
         try:
             notion.pages.create(
@@ -168,16 +201,41 @@ try:
             )
         except Exception as e:
             # エラー時は進捗バーの行を上書きしないように改行してから表示
-            print(f"\nNotionへの書き込み中にエラーが発生しました (品番: {hinban}): {e}")
+            error_message = f"Notionへの書き込み中にエラーが発生しました (品番: {hinban}): {e}"
+            print(f"\n{error_message}")
+            send_error_notification(
+                subject=f"Notion同期エラー: 品番 {hinban}",
+                body=error_message
+            )
 
     # 処理完了後に改行
     print()
 
-except gspread.exceptions.SpreadsheetNotFound:
-    print(f"エラー: スプレッドシートID '{SPREADSHEET_ID}' が見つかりません。")
-except gspread.exceptions.WorksheetNotFound:
-    print(f"エラー: シート名 '{SHEET_NAME}' が見つかりません。")
+except gspread.exceptions.SpreadsheetNotFound as e:
+    error_message = f"エラー: スプレッドシートID '{SPREADSHEET_ID}' が見つかりません。詳細: {e}"
+    print(error_message)
+    send_error_notification(
+        subject="Notion同期エラー: スプレッドシート見つからず",
+        body=error_message
+    )
+except gspread.exceptions.WorksheetNotFound as e:
+    error_message = f"エラー: シート名 '{SHEET_NAME}' が見つかりません。詳細: {e}"
+    print(error_message)
+    send_error_notification(
+        subject="Notion同期エラー: シート見つからず",
+        body=error_message
+    )
 except FileNotFoundError as e:
-    print(f"エラー: {e}")
+    error_message = f"エラー: {e}"
+    print(error_message)
+    send_error_notification(
+        subject="Notion同期エラー: ファイル見つからず",
+        body=error_message
+    )
 except Exception as e:
-    print(f"予期せぬエラーが発生しました: {e}")
+    error_message = f"予期せぬエラーが発生しました: {e}"
+    print(error_message)
+    send_error_notification(
+        subject="Notion同期エラー: 予期せぬエラー",
+        body=error_message
+    )
