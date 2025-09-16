@@ -278,21 +278,34 @@ try:
             
             if os.path.isfile(join_path):
                 try:
-                    # ファイルメタデータを設定
-                    file_metadata = {
-                        'name': i_file_name,
-                        'parents': [target_folder_id]
-                    }
-                    
-                    # ファイルをアップロード
+                    # Google Drive上で同名ファイルの検索
+                    query = f"name = '{i_file_name}' and '{target_folder_id}' in parents and trashed = false"
+                    response = drive_service.files().list(q=query, spaces='drive', fields='files(id, name)').execute()
+                    existing_files = response.get('files', [])
+
                     media = MediaFileUpload(join_path, resumable=True)
-                    file = drive_service.files().create(
-                        body=file_metadata,
-                        media_body=media,
-                        fields='id'
-                    ).execute()
-                    
-                    print(f'ファイルアップロード完了: {i_file_name} (ID: {file.get("id")})')
+
+                    if existing_files:
+                        # ファイルが存在する場合 -> 更新
+                        existing_file_id = existing_files[0].get('id')
+                        file = drive_service.files().update(
+                            fileId=existing_file_id,
+                            media_body=media,
+                            fields='id'
+                        ).execute()
+                        print(f'ファイル更新完了: {i_file_name} (ID: {file.get("id")})')
+                    else:
+                        # ファイルが存在しない場合 -> 新規作成
+                        file_metadata = {
+                            'name': i_file_name,
+                            'parents': [target_folder_id]
+                        }
+                        file = drive_service.files().create(
+                            body=file_metadata,
+                            media_body=media,
+                            fields='id'
+                        ).execute()
+                        print(f'ファイルアップロード完了: {i_file_name} (ID: {file.get("id")})')
                     
                 except HttpError as upload_error:
                     error_msg = f"ファイル '{i_file_name}' のアップロードに失敗: {upload_error}"
