@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from notion_client import Client
 import smtplib
 from email.mime.text import MIMEText
+from datetime import date
 
 load_dotenv()
 
@@ -54,7 +55,7 @@ def resolve_google_api_key_file(filename):
     raise FileNotFoundError(
         f"Google API認証ファイルが見つかりません: {filename}\n"
         f"検索パス:\n"
-        f"  - 現在の作業ディレクトリ: {os.path.abspath(filename)}\n"
+        f"  -現在の作業ディレクトリ: {os.path.abspath(filename)}\n"
         f"  - スクリプトディレクトリ: {script_relative_path}"
     )
 
@@ -124,7 +125,7 @@ try:
 
             # 取得日を追加
             # Notionの日付形式に合わせてYYYY-MM-DDに変換
-            reordered_row.append("2025-09-12")
+            reordered_row.append(date.today().isoformat())
 
             filtered_data.append(reordered_row)
 
@@ -147,7 +148,7 @@ try:
 
         # 進捗の計算と表示
         progress = (i + 1) / total_items
-        arrow = '=' * int(round(progress * bar_length) - 1) + '>'
+        arrow = '=' * int(round(progress * bar_length) - 1) + ">"
         spaces = ' ' * (bar_length - len(arrow))
         # 緑色に設定し、バーとパーセンテージを表示、最後に色をリセット
         print(f"\r\033[92m{i+1}/{total_items}\033[0m] \033[92m{int(progress * 100)}%\033[0m [\033[92m{arrow}{spaces}\033[0m]", end='')
