@@ -117,7 +117,7 @@ try:
 
         try:
             # フォルダー内で品番と一致するPDFファイルを検索
-            search_pattern = os.path.join(pdf_folder, f"{item}*.pdf")
+            search_pattern = os.path.join(pdf_folder, f"{item}.pdf")
             pdf_files = glob.glob(search_pattern)
 
             if not pdf_files:
