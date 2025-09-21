@@ -118,13 +118,13 @@ Pythonスクリプトの実行中にエラーが発生しました。
 # --- メイン処理 ---
 try:
     webbrowser.open(r"\\192.168.1.200\共有\製造課\加工進行表\セット予定表参照.xlsx")
-    pg.sleep(15)
+    pg.sleep(20)
     pg.hotkey("alt", "f")
-    pg.sleep(2)
+    pg.sleep(5)
     pg.press("i")
-    pg.sleep(2)
+    pg.sleep(5)
     pg.press("n")
-    pg.sleep(2)
+    pg.sleep(5)
     pg.press("enter")
     pg.sleep(10)
     pg.hotkey("ctrl","s")
