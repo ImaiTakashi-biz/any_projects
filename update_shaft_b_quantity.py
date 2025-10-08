@@ -8,6 +8,7 @@ import traceback
 import os
 import sys
 from dotenv import load_dotenv
+from openpyxl import load_workbook
 
 # .envファイルから環境変数を読み込み
 load_dotenv()
@@ -27,6 +28,10 @@ EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 EMAIL_RECEIVERS = os.getenv("EMAIL_RECEIVERS", "").split(",") if os.getenv("EMAIL_RECEIVERS") else []
 SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.office365.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+
+EXCEL_TARGET_PATH = r"\\192.168.1.200\共有\生産管理課\セット予定表.xlsx"
+EXCEL_TARGET_SHEET = "生産中"
+EXCEL_SEARCH_VALUE = "99759-00022"
 
 # Google API設定の存在確認
 if not GOOGLE_SERVICE_ACCOUNT_KEY_FILE:
@@ -112,6 +117,38 @@ Pythonスクリプトの実行中にエラーが発生しました。
     except Exception as e:
         print(f"メール送信中にエラーが発生しました: {e}")
 
+
+def load_target_numbers_from_excel(path, sheet_name, search_value):
+    """Read target identifiers from the Excel sheet based on the search value in column I."""
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Excel file not found: {path}")
+
+    wb = load_workbook(path, data_only=True, read_only=True)
+    try:
+        if sheet_name not in wb.sheetnames:
+            raise ValueError(f"Sheet '{sheet_name}' does not exist in the Excel file.")
+
+        ws = wb[sheet_name]
+
+        targets = []
+        found_data = False
+        for row in ws.iter_rows(min_col=5, max_col=9, values_only=True):
+            e_value = row[0]
+            i_value = row[4]
+
+            if e_value is None:
+                if found_data:
+                    break
+                continue
+
+            found_data = True
+            if str(i_value).strip() == search_value:
+                targets.append(str(e_value).strip())
+
+        return targets
+    finally:
+        wb.close()
+
 # --- メイン処理 ---
 try:
     # 日付設定
@@ -143,7 +180,11 @@ try:
     }
 
     # target_numが変動する場合（例: 一部項目を除外）
-    target_num = ["E-12", "E-14", "E-13"]  # 動的に変動する対象リスト
+    target_num = load_target_numbers_from_excel(
+        EXCEL_TARGET_PATH,
+        EXCEL_TARGET_SHEET,
+        EXCEL_SEARCH_VALUE,
+    )
     # master ["E-12", "F-7", "F-8", "F-13", "F-14", "E-14", "E-13"]
     target_list = []
 
