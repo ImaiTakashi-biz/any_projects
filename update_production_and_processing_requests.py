@@ -189,19 +189,60 @@ try:
                 row[i] = False
     sh.update(values=values, range_name="L3")
 
-    # セル範囲 A:A の値を取得し、日付形式に変換して更新する
-    values = sh.col_values(1)  # A列の値を取得
-    for i in range(1, len(values) + 1):  # A列の各セルについて
-        try:
-            date_value = datetime.datetime.strptime(values[i - 1], "%Y/%m/%d")  # 文字列を日付オブジェクトに変換
-            sh.update_cell(i, 1, date_value.strftime("%Y/%m/%d"))  # 日付を指定した形式でセルに書き込む
-            time.sleep(1)  # 1秒の待ち時間を設ける
-            print(f"Cell A{i} updated successfully.")
-        except ValueError:
-            print(f"Skipping non-date value at Cell A{i}.")
+    # セル範囲 A:A の値を取得し、日付形式に変換して更新する（改良版）
+    print("日付データの正規化と並び替えを開始します...")
 
-    print("Process completed.")
+    # 全データを取得
+    all_data = sh.get_all_values()
 
+    if len(all_data) > 2:
+        # ヘッダー行（1行目）と2行目を保護し、3行目以降のデータ行を取得
+        header = all_data[0]
+        second_row = all_data[1] if len(all_data) > 1 else []
+        data_rows = all_data[2:]  # 3行目以降のデータ
+        
+        # 日付正規化と並び替えを同時に実行
+        processed_rows = []
+        invalid_date_rows = []
+        
+        for row in data_rows:
+            if len(row) > 0 and row[0].strip():  # A列に値がある場合
+                try:
+                    # 日付を正規化
+                    date_value = datetime.datetime.strptime(row[0], "%Y/%m/%d")
+                    normalized_date = date_value.strftime("%Y/%m/%d")
+                    
+                    # 行のA列を正規化された日付で更新
+                    row[0] = normalized_date
+                    processed_rows.append((date_value, row))
+                    
+                except ValueError:
+                    # 日付として認識できない行は別途処理
+                    invalid_date_rows.append(row)
+                    print(f"日付として認識できない行をスキップ: A列の値 = '{row[0]}'")
+        
+        # 日付昇順で並び替え
+        processed_rows.sort(key=lambda x: x[0])
+        
+        # 並び替えたデータと無効な日付の行を結合
+        sorted_data = [row for _, row in processed_rows] + invalid_date_rows
+        
+        # ヘッダー、2行目、並び替えたデータを結合
+        final_data = [header] + [second_row] + sorted_data
+        
+        # スプレッドシートを更新
+        sh.clear()  # シートをクリア
+        sh.update(values=final_data, range_name="A1")  # 並び替えたデータを書き込み
+        
+        print(f"日付正規化完了: {len(processed_rows)}行")
+        print(f"無効な日付行: {len(invalid_date_rows)}行")
+        print("データを日付昇順で並び替えました。")
+        
+    else:
+        print("並び替えるデータがありません。（3行目以降のデータが必要）")
+
+    print("日付処理が完了しました。")
+   
 
     # 各リンク先 生産支援管理表シートキーをコピー
     ws_key = client.open_by_key("184vxMHttnn6HmfCFW2uM6B94e5tAscfFCEpgXF0wKOk") #スプレッドシートのkey
@@ -282,12 +323,12 @@ try:
         senjou_data.append(value2)
 
     # 洗浄指示確認用
-    ws = client.open_by_key("1mXaPA36hJCsBR19bZwnPG6Rf-k7h-0CVgqdOSe7WPz4") #スプレッドシートのkey
-    sh = ws.worksheet("🔒data")
+    ws_clean = client.open_by_key("1mXaPA36hJCsBR19bZwnPG6Rf-k7h-0CVgqdOSe7WPz4") #スプレッドシートのkey
+    sh_clean = ws_clean.worksheet("🔒data")
 
     # データ書き込み
-    sh.update(values=[[data] for data in hinban_data], range_name='F5')
-    sh.update(values=[[data] for data in senjou_data], range_name='G5')
+    sh_clean.update(values=[[data] for data in hinban_data], range_name='F5')
+    sh_clean.update(values=[[data] for data in senjou_data], range_name='G5')
     
     print("完了しました。")
 
