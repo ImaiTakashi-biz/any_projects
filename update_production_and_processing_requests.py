@@ -14,12 +14,6 @@ from dotenv import load_dotenv
 # .envファイルから環境変数を読み込み
 load_dotenv()
 
-
-# 通知アカウント
-# ・takada@araiseimitsu.onmicrosoft.com
-# ・imai@araiseimitsu.onmicrosoft.com
-# ・n.kizaki@araiseimitsu.onmicrosoft.com
-
 # --- Google API設定 ---
 GOOGLE_SERVICE_ACCOUNT_KEY_FILE = os.getenv("GOOGLE_SERVICE_ACCOUNT_KEY_FILE")
 
@@ -116,12 +110,8 @@ Pythonスクリプトの実行中にエラーが発生しました。
 
 # --- メイン処理 ---
 try:
-    # 本日の日付を取得
     today = datetime.date.today()
-    # 表示形式を指定してフォーマット
     today_date = today.strftime('%Y/%m/%d')
-    # 結果を表示
-    print(today_date)
 
     # 認証情報を設定（環境変数から読み込み）
     scope = ["https://spreadsheets.google.com/feeds",
@@ -148,7 +138,6 @@ try:
     completed_tasks = []
 
     # リスト内の各行をチェック
-    completed_tasks = []
     for task in all_values[:]:  # コピーしたリストを使ってイテレーション
         if task[12] == "TRUE":
             combined_task = task[1:10] + task[13:]
@@ -157,8 +146,6 @@ try:
     # 各行の最後尾にformatted_dateを追加
     for task in completed_tasks:
         task.append(today_date)
-
-    print(completed_tasks)
 
     # 対応完了品記録シートデータ取得
     all_record = sh_record.get_all_values()
@@ -243,7 +230,6 @@ try:
 
     print("日付処理が完了しました。")
    
-
     # 各リンク先 生産支援管理表シートキーをコピー
     ws_key = client.open_by_key("184vxMHttnn6HmfCFW2uM6B94e5tAscfFCEpgXF0wKOk") #スプレッドシートのkey
     sh_key = ws_key.worksheet("シート1")
