@@ -193,23 +193,27 @@ try:
         invalid_date_rows = []
         
         for row in data_rows:
-            if len(row) > 0 and row[0].strip():  # A列に値がある場合
-                try:
-                    # 日付を正規化
-                    date_value = datetime.datetime.strptime(row[0], "%Y/%m/%d")
-                    normalized_date = date_value.strftime("%Y/%m/%d")
-                    
-                    # 行のA列を正規化された日付で更新
-                    row[0] = normalized_date
-                    processed_rows.append((date_value, row))
-                    
-                except ValueError:
-                    # 日付として認識できない行は別途処理
+            if len(row) > 0:  # 行にデータがある場合
+                if row[0].strip():  # A列に値がある場合
+                    try:
+                        # 日付を正規化
+                        date_value = datetime.datetime.strptime(row[0], "%Y/%m/%d")
+                        normalized_date = date_value.strftime("%Y/%m/%d")
+                        
+                        # 行のA列を正規化された日付で更新
+                        row[0] = normalized_date
+                        processed_rows.append((date_value, row))
+                        
+                    except ValueError:
+                        # 日付として認識できない行は別途処理
+                        invalid_date_rows.append(row)
+                        print(f"日付として認識できない行をスキップ: A列の値 = '{row[0]}'")
+                else:
+                    # A列が空の場合はそのまま保持
                     invalid_date_rows.append(row)
-                    print(f"日付として認識できない行をスキップ: A列の値 = '{row[0]}'")
         
-        # 日付昇順で並び替え
-        processed_rows.sort(key=lambda x: x[0])
+        # A列の日付とD列の両方で並び替え（複合キー）
+        processed_rows.sort(key=lambda x: (x[0], x[1][3] if len(x[1]) > 3 else ""))
         
         # 並び替えたデータと無効な日付の行を結合
         sorted_data = [row for _, row in processed_rows] + invalid_date_rows
@@ -217,9 +221,33 @@ try:
         # ヘッダー、2行目、並び替えたデータを結合
         final_data = [header] + [second_row] + sorted_data
         
-        # スプレッドシートを更新
-        sh.clear()  # シートをクリア
-        sh.update(values=final_data, range_name="A1")  # 並び替えたデータを書き込み
+        # スプレッドシートを更新（チェックボックス形式を保持）
+        # まず全データを更新
+        sh.update(values=final_data, range_name="A1")
+        
+        # L:M列のチェックボックス形式を設定
+        if len(final_data) > 2:  # データがある場合のみ
+            l_m_data = []
+            for row in final_data[2:]:  # 3行目以降
+                l_value = row[11] if len(row) > 11 else ""  # L列
+                m_value = row[12] if len(row) > 12 else ""  # M列
+                
+                # 文字列をブール値に変換
+                if l_value == 'TRUE':
+                    l_value = True
+                elif l_value == 'FALSE':
+                    l_value = False
+                    
+                if m_value == 'TRUE':
+                    m_value = True
+                elif m_value == 'FALSE':
+                    m_value = False
+                
+                l_m_data.append([l_value, m_value])
+            
+            # L:M列のみを更新
+            if l_m_data:
+                sh.update(values=l_m_data, range_name="L3")
         
         print(f"日付正規化完了: {len(processed_rows)}行")
         print(f"無効な日付行: {len(invalid_date_rows)}行")
