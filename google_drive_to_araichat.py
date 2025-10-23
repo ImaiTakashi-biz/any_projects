@@ -111,8 +111,8 @@ file_filter_config = {
 USE_FOLDER_MODE = True  # True: フォルダモード, False: 単一ファイルモード
 
 # 削除設定
-DELETE_AFTER_UPLOAD = True  # True: 配信成功後にファイル削除, False: 削除しない
-DELETE_LOCAL_CACHE = True   # True: ローカルキャッシュも削除, False: キャッシュ保持
+DELETE_AFTER_UPLOAD = False  # True: 配信成功後にファイル削除, False: 削除しない
+DELETE_LOCAL_CACHE = False   # True: ローカルキャッシュも削除, False: キャッシュ保持
 
 def get_google_drive_service():
     """
@@ -407,7 +407,7 @@ def send_folder_files_to_araichat(folder_id, file_filter=None):
     try:
         print(f"\n=== フォルダ内HTMLファイル送信開始 ===")
         print(f"フォルダID: {folder_id}")
-        print(f"削除モード: {'有効' if DELETE_AFTER_UPLOAD else '無効'}")
+        print(f"削除モード: {'有効' if DELETE_AFTER_UPLOAD else '無効（ファイル保持）'}")
 
         # フォルダ内ファイル一覧取得
         files = list_files_in_folder(folder_id)
@@ -448,16 +448,18 @@ def send_folder_files_to_araichat(folder_id, file_filter=None):
                 sent_files.append(file_name)
                 print(f"✅ {file_name} 送信完了")
                 
-                # 送信成功時にファイル削除
+                # 送信成功時の処理
                 if DELETE_AFTER_UPLOAD:
                     print(f"配信成功により削除実行: {file_name}")
                     if delete_file_from_google_drive(file_id, file_name):
                         deleted_files.append(file_name)
                     else:
                         print(f"⚠️ ファイル削除失敗（手動で削除してください）: {file_name}")
+                else:
+                    print(f"✅ {file_name} 送信完了 - ファイル保持")
             else:
                 failed_files.append(file_name)
-                print(f"❌ {file_name} 送信失敗 - ファイル削除をスキップ")
+                print(f"❌ {file_name} 送信失敗")
 
             # 送信間隔を空ける（API制限対策）
             if i < len(filtered_files):
@@ -527,11 +529,13 @@ def send_file_to_araichat_single(file_id=None):
         if success:
             print("\n✅ ファイル送信が正常に完了しました")
             
-            # 送信成功時にファイル削除（単一ファイルモード）
+            # 送信成功時の処理（単一ファイルモード）
             if DELETE_AFTER_UPLOAD and not USE_FOLDER_MODE:
                 print(f"\n=== ファイル削除処理 ===")
                 print(f"配信成功により削除実行: {file_name}")
                 delete_file_from_google_drive(actual_file_id, file_name)
+            else:
+                print(f"✅ ファイル送信完了 - ファイル保持: {file_name}")
         else:
             print("\n❌ ファイル送信に失敗しました")
 
@@ -554,7 +558,7 @@ try:
         print(f"ARAICHAT_ROOM_ID: {ARAICHAT_ROOM_ID}")
         print(f"ARAICHAT_API_KEY: {'設定済み' if ARAICHAT_API_KEY else '❌ 未設定'}")
         print(f"GOOGLE_SERVICE_ACCOUNT_FILE: {GOOGLE_SERVICE_ACCOUNT_FILE}")
-        print(f"削除モード: {'有効' if DELETE_AFTER_UPLOAD else '無効'}")
+        print(f"削除モード: {'有効' if DELETE_AFTER_UPLOAD else '無効（ファイル保持）'}")
         
         # 必須環境変数のチェック
         missing_vars = []
@@ -590,10 +594,14 @@ try:
                 print(f"\n🎉 フォルダ内HTMLファイル送信完了: {len(result['sent_files'])}件")
                 if DELETE_AFTER_UPLOAD:
                     print(f"🗑️ ファイル削除完了: {len(result['deleted_files'])}件")
+                else:
+                    print(f"📁 ファイル保持: {len(result['sent_files'])}件")
             elif result['total_files'] > 0:
                 print(f"\n⚠️ 一部送信失敗: 成功{len(result['sent_files'])}件, 失敗{len(result['failed_files'])}件")
                 if DELETE_AFTER_UPLOAD:
                     print(f"🗑️ ファイル削除完了: {len(result['deleted_files'])}件")
+                else:
+                    print(f"📁 ファイル保持: {len(result['sent_files'])}件")
             else:
                 print(f"\n❌ 送信対象HTMLファイルなし")
 
@@ -609,6 +617,8 @@ try:
                 print("\n✅ ファイル送信が正常に完了しました")
                 if DELETE_AFTER_UPLOAD:
                     print("🗑️ 送信成功によりファイル削除を実行しました")
+                else:
+                    print("📁 ファイルは保持されました")
             else:
                 print("\n❌ ファイル送信に失敗しました")
 
