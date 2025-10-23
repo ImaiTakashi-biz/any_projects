@@ -84,7 +84,7 @@ Pythonスクリプトの実行中にエラーが発生しました。
 # ARAICHAT API設定
 ARAICHAT_BASE_URL = os.getenv("ARAICHAT_BASE_URL", "https://araichat-966672454924.asia-northeast1.run.app/")
 ARAICHAT_API_KEY = os.getenv("ARAICHAT_API_KEY")
-ARAICHAT_ROOM_ID = os.getenv("ARAICHAT_ROOM_ID", "4")  # デフォルトのルームIDを環境変数から読み込み、なければ"4"を使用
+ARAICHAT_ROOM_ID = os.getenv("ARAICHAT_ROOM_ID")
 
 # Google Drive設定
 GOOGLE_SERVICE_ACCOUNT_FILE = os.getenv("GOOGLE_SERVICE_ACCOUNT_KEY_FILE", "aptest-384703-24764f69b34f.json")
@@ -296,31 +296,70 @@ def send_file_to_araichat(file_data, file_name):
         bool: 成功時はTrue、失敗時はFalse
     """
     try:
+        # 環境変数の確認
+        print(f"=== ARAICHAT送信設定確認 ===")
+        print(f"BASE_URL: {ARAICHAT_BASE_URL}")
+        print(f"ROOM_ID: {ARAICHAT_ROOM_ID}")
+        print(f"API_KEY: {'設定済み' if ARAICHAT_API_KEY else '未設定'}")
+        
+        if not ARAICHAT_API_KEY:
+            error_msg = "ARAICHAT_API_KEY が設定されていません"
+            print(f"❌ {error_msg}")
+            send_error_email(f"ARAICHAT設定エラー:\n{error_msg}")
+            return False
+            
+        if not ARAICHAT_ROOM_ID:
+            error_msg = "ARAICHAT_ROOM_ID が設定されていません"
+            print(f"❌ {error_msg}")
+            send_error_email(f"ARAICHAT設定エラー:\n{error_msg}")
+            return False
+
         url = f"{ARAICHAT_BASE_URL}/api/integrations/send/{ARAICHAT_ROOM_ID}"
         headers = {"Authorization": f"Bearer {ARAICHAT_API_KEY}"}
         
         data = {"text": f"Google Driveからファイルを送信: {file_name}"}
         
+        print(f"送信URL: {url}")
+        print(f"ファイルサイズ: {len(file_data)} bytes")
         print(f"ARAICHATへファイル送信開始: {file_name}")
+        
         files = [("files", (file_name, io.BytesIO(file_data), "text/html"))]  # MIMEタイプを"text/html"に指定
         resp = requests.post(url, headers=headers, data=data, files=files, timeout=30)
+        
+        # レスポンス詳細をログ出力
+        print(f"レスポンスステータス: {resp.status_code}")
+        print(f"レスポンスヘッダー: {dict(resp.headers)}")
+        
+        try:
+            response_text = resp.text
+            print(f"レスポンス内容: {response_text}")
+        except:
+            print("レスポンス内容の取得に失敗")
+        
         resp.raise_for_status()
         result = resp.json()
         print(f"✅ ARAICHATへファイル送信成功: {file_name}")
+        print(f"送信結果: {result}")
         return True
+        
     except requests.exceptions.Timeout:
         error_msg = f"ARAICHAT送信タイムアウトエラー: {file_name}"
-        print(error_msg)
+        print(f"❌ {error_msg}")
+        send_error_email(f"ARAICHAT送信エラー:\n{error_msg}")
+        return False
+    except requests.exceptions.HTTPError as e:
+        error_msg = f"ARAICHAT送信HTTPエラー: {e}\nステータスコード: {e.response.status_code}\nレスポンス: {e.response.text}"
+        print(f"❌ {error_msg}")
         send_error_email(f"ARAICHAT送信エラー:\n{error_msg}")
         return False
     except requests.exceptions.RequestException as e:
         error_msg = f"ARAICHAT送信リクエストエラー: {str(e)}"
-        print(error_msg)
+        print(f"❌ {error_msg}")
         send_error_email(f"ARAICHAT送信エラー:\n{error_msg}")
         return False
     except Exception as e:
         error_msg = f"ARAICHAT送信予期しないエラー: {str(e)}"
-        print(error_msg)
+        print(f"❌ {error_msg}")
         send_error_email(f"ARAICHAT送信エラー:\n{error_msg}")
         return False
 
@@ -508,8 +547,33 @@ def send_file_to_araichat_single(file_id=None):
 try:
     if __name__ == "__main__":
         print("=== ARAICHAT ファイル送信スクリプト (フォルダ対応版) ===")
-        print(f"ARAICHATルームID: {ARAICHAT_ROOM_ID}")
+        
+        # 環境変数の確認
+        print(f"\n=== 環境変数設定確認 ===")
+        print(f"ARAICHAT_BASE_URL: {ARAICHAT_BASE_URL}")
+        print(f"ARAICHAT_ROOM_ID: {ARAICHAT_ROOM_ID}")
+        print(f"ARAICHAT_API_KEY: {'設定済み' if ARAICHAT_API_KEY else '❌ 未設定'}")
+        print(f"GOOGLE_SERVICE_ACCOUNT_FILE: {GOOGLE_SERVICE_ACCOUNT_FILE}")
         print(f"削除モード: {'有効' if DELETE_AFTER_UPLOAD else '無効'}")
+        
+        # 必須環境変数のチェック
+        missing_vars = []
+        if not ARAICHAT_API_KEY:
+            missing_vars.append("ARAICHAT_API_KEY")
+        if not ARAICHAT_ROOM_ID:
+            missing_vars.append("ARAICHAT_ROOM_ID")
+        if not EMAIL_SENDER:
+            missing_vars.append("EMAIL_SENDER")
+        if not EMAIL_PASSWORD:
+            missing_vars.append("EMAIL_PASSWORD")
+        if not EMAIL_RECEIVERS:
+            missing_vars.append("EMAIL_RECEIVERS")
+            
+        if missing_vars:
+            error_msg = f"以下の環境変数が設定されていません: {', '.join(missing_vars)}"
+            print(f"\n❌ {error_msg}")
+            print("⚠️ .envファイルを作成して必要な環境変数を設定してください")
+            raise ValueError(error_msg)
 
         if USE_FOLDER_MODE:
             print(f"\n動作モード: フォルダ一括送信（HTMLファイル専用）")
