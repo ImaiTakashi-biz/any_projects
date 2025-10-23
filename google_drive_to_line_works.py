@@ -585,8 +585,9 @@ def upload_file_to_lineworks(access_token, file_data, file_name):
 
         # uploadURLの正規化処理（DNS解決エラー対策）
         if upload_url:
-            # 末尾のピリオドを削除し、.comを追加
-            upload_url = upload_url.replace('apis-storage.worksmobile.', 'apis-storage.worksmobile.com')
+            # 既に.comが含まれている場合はそのまま、含まれていない場合は追加
+            if 'apis-storage.worksmobile.com' not in upload_url:
+                upload_url = upload_url.replace('apis-storage.worksmobile.', 'apis-storage.worksmobile.com')
             print(f"uploadURL正規化完了: {upload_url}")
 
         if not file_id or not upload_url:
@@ -601,9 +602,14 @@ def upload_file_to_lineworks(access_token, file_data, file_name):
 
         # URLの詳細分析
         print(f"uploadURL詳細分析:")
-        print(f"  ドメイン: apis-storage.worksmobile.com")
-        print(
-            f"  パス: {upload_url.split('apis-storage.worksmobile.com')[1] if 'apis-storage.worksmobile.com' in upload_url else 'N/A'}")
+        try:
+            from urllib.parse import urlparse
+            parsed_url = urlparse(upload_url)
+            print(f"  ドメイン: {parsed_url.netloc}")
+            print(f"  パス: {parsed_url.path}")
+        except Exception as e:
+            print(f"  URL解析エラー: {e}")
+            print(f"  元のURL: {upload_url}")
 
         print(f"アップロードするファイルサイズ: {len(file_data)} bytes")
 
