@@ -583,6 +583,12 @@ def upload_file_to_lineworks(access_token, file_data, file_name):
         file_id = meta_json.get("fileId")
         upload_url = meta_json.get("uploadUrl")
 
+        # uploadURLの正規化処理（DNS解決エラー対策）
+        if upload_url:
+            # 末尾のピリオドを削除し、.comを追加
+            upload_url = upload_url.replace('apis-storage.worksmobile.', 'apis-storage.worksmobile.com')
+            print(f"uploadURL正規化完了: {upload_url}")
+
         if not file_id or not upload_url:
             print("必要な情報が取得できません:")
             print(f"  fileId: {file_id}")
