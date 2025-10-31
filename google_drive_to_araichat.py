@@ -8,6 +8,8 @@ import smtplib
 from email.mime.text import MIMEText
 import traceback
 import sys
+import hashlib
+import json
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
@@ -284,84 +286,245 @@ def apply_file_filter(files, file_filter):
     print(f"フィルター適用後: {len(filtered_files)}件のHTMLファイルが対象")
     return filtered_files
 
+# 送信履歴管理（重複防止用）
+SENT_CACHE_FILE = Path(__file__).parent / "araichat_sent_cache.json"
+CACHE_TTL_HOURS = 24  # キャッシュ保持期間（時間）
+
+def calculate_file_digest(file_data, file_name):
+    """
+    ファイルの内容から一意なハッシュ値を計算
+    
+    Args:
+        file_data (bytes): ファイルデータ
+        file_name (str): ファイル名
+    
+    Returns:
+        str: SHA256ハッシュ値
+    """
+    # ファイル名と内容を組み合わせてハッシュ化
+    combined = f"{file_name}:{len(file_data)}:".encode('utf-8') + file_data
+    return hashlib.sha256(combined).hexdigest()
+
+def load_sent_cache():
+    """
+    送信履歴キャッシュを読み込む
+    
+    Returns:
+        dict: 送信履歴（キー: digest, 値: {'file_name': str, 'sent_time': int}）
+    """
+    if SENT_CACHE_FILE.exists():
+        try:
+            with open(SENT_CACHE_FILE, 'r', encoding='utf-8') as f:
+                cache = json.load(f)
+                # 古いエントリを削除（TTL超過）
+                current_time = int(time.time())
+                ttl_seconds = CACHE_TTL_HOURS * 3600
+                return {
+                    k: v for k, v in cache.items()
+                    if current_time - v.get('sent_time', 0) < ttl_seconds
+                }
+        except Exception as e:
+            print(f"⚠️ 送信履歴キャッシュ読み込みエラー: {e}")
+            return {}
+    return {}
+
+def save_sent_cache(cache):
+    """
+    送信履歴キャッシュを保存
+    
+    Args:
+        cache (dict): 送信履歴
+    """
+    try:
+        SENT_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(SENT_CACHE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(cache, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"⚠️ 送信履歴キャッシュ保存エラー: {e}")
+
+def check_already_sent(file_digest, file_name):
+    """
+    ファイルが既に送信済みかチェック
+    
+    Args:
+        file_digest (str): ファイルのハッシュ値
+        file_name (str): ファイル名
+    
+    Returns:
+        bool: 送信済みの場合はTrue
+    """
+    cache = load_sent_cache()
+    
+    if file_digest in cache:
+        sent_info = cache[file_digest]
+        sent_time = datetime.datetime.fromtimestamp(sent_info.get('sent_time', 0))
+        print(f"⚠️ 既に送信済みとしてスキップ: {file_name}")
+        print(f"   前回送信日時: {sent_time.strftime('%Y/%m/%d %H:%M:%S')}")
+        print(f"   ハッシュ値: {file_digest[:16]}...")
+        return True
+    return False
+
+def mark_as_sent(file_digest, file_name):
+    """
+    ファイルを送信済みとしてマーク
+    
+    Args:
+        file_digest (str): ファイルのハッシュ値
+        file_name (str): ファイル名
+    """
+    cache = load_sent_cache()
+    cache[file_digest] = {
+        'file_name': file_name,
+        'sent_time': int(time.time())
+    }
+    save_sent_cache(cache)
+
 def send_file_to_araichat(file_data, file_name):
     """
-    ファイルデータをARAICHATに送信
+    ファイルデータをARAICHATに送信（リトライ処理＋重複防止付き）
 
     Args:
         file_data (bytes): アップロードするファイルのバイトデータ
         file_name (str): ファイル名
 
     Returns:
-        bool: 成功時はTrue、失敗時はFalse
+        bool: 成功時はTrue、失敗時はFalse（既に送信済みの場合はTrue）
     """
-    try:
-        # 環境変数の確認
-        print(f"=== ARAICHAT送信設定確認 ===")
-        print(f"BASE_URL: {ARAICHAT_BASE_URL}")
-        print(f"ROOM_ID: {ARAICHAT_ROOM_ID}")
-        print(f"API_KEY: {'設定済み' if ARAICHAT_API_KEY else '未設定'}")
-        
-        if not ARAICHAT_API_KEY:
-            error_msg = "ARAICHAT_API_KEY が設定されていません"
-            print(f"❌ {error_msg}")
-            send_error_email(f"ARAICHAT設定エラー:\n{error_msg}")
-            return False
-            
-        if not ARAICHAT_ROOM_ID:
-            error_msg = "ARAICHAT_ROOM_ID が設定されていません"
-            print(f"❌ {error_msg}")
-            send_error_email(f"ARAICHAT設定エラー:\n{error_msg}")
-            return False
-
-        url = f"{ARAICHAT_BASE_URL}/api/integrations/send/{ARAICHAT_ROOM_ID}"
-        headers = {"Authorization": f"Bearer {ARAICHAT_API_KEY}"}
-        
-        data = {"text": f"Google Driveからファイルを送信: {file_name}"}
-        
-        print(f"送信URL: {url}")
-        print(f"ファイルサイズ: {len(file_data)} bytes")
-        print(f"ARAICHATへファイル送信開始: {file_name}")
-        
-        files = [("files", (file_name, io.BytesIO(file_data), "text/html"))]  # MIMEタイプを"text/html"に指定
-        resp = requests.post(url, headers=headers, data=data, files=files, timeout=30)
-        
-        # レスポンス詳細をログ出力
-        print(f"レスポンスステータス: {resp.status_code}")
-        print(f"レスポンスヘッダー: {dict(resp.headers)}")
-        
-        try:
-            response_text = resp.text
-            print(f"レスポンス内容: {response_text}")
-        except:
-            print("レスポンス内容の取得に失敗")
-        
-        resp.raise_for_status()
-        result = resp.json()
-        print(f"✅ ARAICHATへファイル送信成功: {file_name}")
-        print(f"送信結果: {result}")
+    # ファイルのハッシュ値を計算（重複チェック用）
+    file_digest = calculate_file_digest(file_data, file_name)
+    
+    # 既に送信済みかチェック
+    if check_already_sent(file_digest, file_name):
+        print(f"✅ 既に送信済みのためスキップ: {file_name}")
         return True
+    
+    # 環境変数の確認
+    print(f"=== ARAICHAT送信設定確認 ===")
+    print(f"BASE_URL: {ARAICHAT_BASE_URL}")
+    print(f"ROOM_ID: {ARAICHAT_ROOM_ID}")
+    print(f"API_KEY: {'設定済み' if ARAICHAT_API_KEY else '未設定'}")
+    
+    if not ARAICHAT_API_KEY:
+        error_msg = "ARAICHAT_API_KEY が設定されていません"
+        print(f"❌ {error_msg}")
+        send_error_email(f"ARAICHAT設定エラー:\n{error_msg}")
+        return False
         
-    except requests.exceptions.Timeout:
-        error_msg = f"ARAICHAT送信タイムアウトエラー: {file_name}"
+    if not ARAICHAT_ROOM_ID:
+        error_msg = "ARAICHAT_ROOM_ID が設定されていません"
         print(f"❌ {error_msg}")
-        send_error_email(f"ARAICHAT送信エラー:\n{error_msg}")
+        send_error_email(f"ARAICHAT設定エラー:\n{error_msg}")
         return False
-    except requests.exceptions.HTTPError as e:
-        error_msg = f"ARAICHAT送信HTTPエラー: {e}\nステータスコード: {e.response.status_code}\nレスポンス: {e.response.text}"
-        print(f"❌ {error_msg}")
-        send_error_email(f"ARAICHAT送信エラー:\n{error_msg}")
-        return False
-    except requests.exceptions.RequestException as e:
-        error_msg = f"ARAICHAT送信リクエストエラー: {str(e)}"
-        print(f"❌ {error_msg}")
-        send_error_email(f"ARAICHAT送信エラー:\n{error_msg}")
-        return False
-    except Exception as e:
-        error_msg = f"ARAICHAT送信予期しないエラー: {str(e)}"
-        print(f"❌ {error_msg}")
-        send_error_email(f"ARAICHAT送信エラー:\n{error_msg}")
-        return False
+
+    # URLの末尾スラッシュを調整
+    base_url = ARAICHAT_BASE_URL.rstrip("/")
+    url = f"{base_url}/api/integrations/send/{ARAICHAT_ROOM_ID}"
+    headers = {
+        "Authorization": f"Bearer {ARAICHAT_API_KEY}",
+        # 冪等性キー（サーバー側が対応している場合、重複防止に有効）
+        "Idempotency-Key": f"gdrive:{file_digest[:32]}"
+    }
+    data = {"text": f"Google Driveからファイルを送信: {file_name}"}
+    
+    print(f"送信URL: {url}")
+    print(f"ファイルサイズ: {len(file_data)} bytes")
+    print(f"ファイルハッシュ: {file_digest[:16]}...")
+    print(f"ARAICHATへファイル送信開始: {file_name}")
+    
+    # リトライ設定
+    max_retries = 3
+    backoff_seconds = 2  # 初期待機時間（指数バックオフ: 2秒、4秒、8秒）
+    timeout_connect = 5   # 接続タイムアウト（秒）
+    timeout_read = 180    # 読み取りタイムアウト（秒）
+    
+    for attempt in range(1, max_retries + 1):
+        try:
+            # ファイルデータをBytesIOで作成（毎回新規作成が必要）
+            files = [("files", (file_name, io.BytesIO(file_data), "text/html"))]
+            
+            # タイムアウトを個別に設定（接続タイムアウトと読み取りタイムアウト）
+            timeout = (timeout_connect, timeout_read)
+            
+            if attempt > 1:
+                wait_time = backoff_seconds * (2 ** (attempt - 2))
+                print(f"⏳ リトライ {attempt}/{max_retries}（{wait_time}秒待機後）...")
+                time.sleep(wait_time)
+            
+            start_time = time.time()
+            resp = requests.post(url, headers=headers, data=data, files=files, timeout=timeout)
+            elapsed_time = time.time() - start_time
+            
+            # レスポンス詳細をログ出力
+            print(f"レスポンスステータス: {resp.status_code}（処理時間: {elapsed_time:.2f}秒）")
+            print(f"レスポンスヘッダー: {dict(resp.headers)}")
+            
+            try:
+                response_text = resp.text
+                print(f"レスポンス内容: {response_text}")
+            except:
+                print("レスポンス内容の取得に失敗")
+            
+            resp.raise_for_status()
+            result = resp.json()
+            print(f"✅ ARAICHATへファイル送信成功: {file_name}")
+            print(f"送信結果: {result}")
+            
+            # 送信成功時のみ送信履歴に記録（重複防止）
+            mark_as_sent(file_digest, file_name)
+            print(f"送信履歴を記録しました: {file_name}")
+            
+            return True
+            
+        except requests.exceptions.Timeout as e:
+            elapsed_time = time.time() - start_time if 'start_time' in locals() else 0
+            if attempt < max_retries:
+                print(f"⏱️ タイムアウト発生（{elapsed_time:.2f}秒）: {e} - リトライします")
+                continue
+            else:
+                # 全てのリトライが失敗した場合のみエラー通知
+                error_msg = f"ARAICHAT送信タイムアウトエラー（{max_retries}回試行後）: {file_name}"
+                print(f"❌ {error_msg}")
+                send_error_email(f"ARAICHAT送信エラー:\n{error_msg}")
+                return False
+                
+        except requests.exceptions.HTTPError as e:
+            status_code = e.response.status_code if e.response else None
+            response_text = e.response.text if e.response else ""
+            
+            # 一時的なサーバーエラー（5xx）の場合はリトライ
+            if status_code and 500 <= status_code < 600 and attempt < max_retries:
+                print(f"⚠️ HTTP {status_code} エラー: {e} - リトライします")
+                continue
+            else:
+                # クライアントエラー（4xx）や最終リトライ失敗時はエラー通知
+                error_msg = f"ARAICHAT送信HTTPエラー: {e}\nステータスコード: {status_code}\nレスポンス: {response_text}"
+                print(f"❌ {error_msg}")
+                send_error_email(f"ARAICHAT送信エラー:\n{error_msg}")
+                return False
+                
+        except requests.exceptions.RequestException as e:
+            if attempt < max_retries:
+                print(f"⚠️ ネットワークエラー: {e} - リトライします")
+                continue
+            else:
+                # 全てのリトライが失敗した場合のみエラー通知
+                error_msg = f"ARAICHAT送信リクエストエラー（{max_retries}回試行後）: {str(e)}"
+                print(f"❌ {error_msg}")
+                send_error_email(f"ARAICHAT送信エラー:\n{error_msg}")
+                return False
+                
+        except Exception as e:
+            # 予期しないエラーは即座に通知
+            error_msg = f"ARAICHAT送信予期しないエラー: {str(e)}"
+            print(f"❌ {error_msg}")
+            send_error_email(f"ARAICHAT送信エラー:\n{error_msg}")
+            return False
+    
+    # このコードには到達しないはずだが、念のため
+    error_msg = f"ARAICHAT送信失敗（全リトライ試行後）: {file_name}"
+    print(f"❌ {error_msg}")
+    send_error_email(f"ARAICHAT送信エラー:\n{error_msg}")
+    return False
 
 def delete_file_from_google_drive(file_id, file_name):
     """
