@@ -168,16 +168,25 @@ try:
         'values': [['' for _ in range(1)] for _ in range(72)]
     }])
 
-    # セットデータ書き込み
-    for row, value1 in enumerate(set_list, start=8):
+    # セットデータ書き込み（バッチ更新に変更）
+    # データを事前に整形（日付型として書き込むため、YYYY/MM/DD形式に変換）
+    values_to_update = []
+    for value1 in set_list:
         if isinstance(value1, datetime):
+            # YYYY/MM/DD形式に変換することで、Google Sheetsが日付型として認識する
             value1 = value1.strftime("%Y/%m/%d")
-        sh.update_cell(row, 1, value1)
-        time.sleep(1)
+        elif value1 is None:
+            value1 = ''
+        values_to_update.append([value1])
 
-    # A列のセルの表示形式を日付に変更
+    # バッチ更新で一度に書き込み（valueInputOption='USER_ENTERED'で日付型として認識される）
+    if values_to_update:
+        cell_range = f'A8:A{8 + len(values_to_update) - 1}'
+        sh.update(cell_range, values_to_update, value_input_option='USER_ENTERED')
+
+    # A列のセルの表示形式を日付に変更（yyyy/mm/dd形式：2025/01/01、2025/11/18など）
     a_column_range = "A:A"
-    sh.format(a_column_range, {"numberFormat": {"type": "DATE", "pattern": "yyyy/m/d"}})
+    sh.format(a_column_range, {"numberFormat": {"type": "DATE", "pattern": "yyyy/mm/dd"}})
     
     print("完了しました。")
     
