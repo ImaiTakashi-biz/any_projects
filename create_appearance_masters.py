@@ -225,6 +225,9 @@ def create_skill_master() -> None:
         pivot.columns.name = None
         pivot = pivot.rename(columns={"工程NO": "工程"})
         
+        # 工程列を整数型に変換（浮動小数点数を避けるため）
+        pivot["工程"] = pd.to_numeric(pivot["工程"], errors='coerce').astype('Int64')
+        
         # 既存スキルマスタCSVのヘッダ行を活かしつつ上書き出力
         if os.path.exists(EXPORT_CSV_PATH):
             existing_csv = pd.read_csv(EXPORT_CSV_PATH, nrows=3, header=None)
@@ -257,6 +260,20 @@ def create_skill_master() -> None:
         pivot_aligned = pivot.reindex(columns=cols, fill_value=np.nan)
         key_cols = [cols[0], cols[1]]
         
+        # 工程列を整数型に変換（浮動小数点数を避けるため）
+        if "工程" in pivot_aligned.columns:
+            pivot_aligned["工程"] = pd.to_numeric(pivot_aligned["工程"], errors='coerce').astype('Int64')
+        
+        # スキル値（検査員IDの列）を整数型に変換（浮動小数点数を避けるため）
+        skill_cols = [col for col in pivot_aligned.columns if col not in key_cols]
+        for col in skill_cols:
+            if col in pivot_aligned.columns:
+                # 数値型の列のみ整数型に変換
+                pivot_aligned[col] = pd.to_numeric(pivot_aligned[col], errors='coerce')
+                # NaNでない値のみ整数型に変換
+                mask = pivot_aligned[col].notna()
+                pivot_aligned.loc[mask, col] = pivot_aligned.loc[mask, col].astype('Int64')
+        
         # ベクトル化された操作を使用
         for col in key_cols:
             if col in pivot_aligned.columns:
@@ -276,7 +293,36 @@ def create_skill_master() -> None:
         
         pivot_aligned = pivot_aligned.groupby(key_cols, group_keys=False).apply(merge_rows, include_groups=False).reset_index()
         data_rows = pivot_aligned.sort_values(by=key_cols).reset_index(drop=True)
-        data_rows_filled = data_rows.fillna('')
+        
+        # 工程列とスキル値列を整数型のまま保持（NaNは空文字に変換）
+        # 工程列を整数型に変換
+        if "工程" in data_rows.columns:
+            data_rows["工程"] = pd.to_numeric(data_rows["工程"], errors='coerce').astype('Int64')
+        
+        # スキル値列を整数型に変換
+        skill_cols = [col for col in data_rows.columns if col not in key_cols]
+        for col in skill_cols:
+            if col in data_rows.columns:
+                data_rows[col] = pd.to_numeric(data_rows[col], errors='coerce').astype('Int64')
+        
+        # NaNを空文字に変換（整数型の列も含む）
+        # 工程列とスキル値列は整数型から文字列型に変換し、NaNを空文字に変換
+        data_rows_filled = data_rows.copy()
+        for col in data_rows_filled.columns:
+            if col == "工程":
+                # 工程列を文字列型に変換（整数値は.0なしで出力される）
+                data_rows_filled[col] = data_rows_filled[col].astype('Int64').astype(str)
+                # NaNを空文字に変換
+                data_rows_filled[col] = data_rows_filled[col].replace('nan', '').replace('<NA>', '')
+            elif col in key_cols:
+                # キー列（品番）は文字列として扱う
+                data_rows_filled[col] = data_rows_filled[col].astype(str).replace('nan', '').replace('<NA>', '')
+            else:
+                # スキル値列を文字列型に変換（整数値は.0なしで出力される）
+                data_rows_filled[col] = data_rows_filled[col].astype('Int64').astype(str)
+                # NaNを空文字に変換
+                data_rows_filled[col] = data_rows_filled[col].replace('nan', '').replace('<NA>', '')
+        
         output = pd.concat([header_rows, data_rows_filled], ignore_index=True)
         
         # CSVファイルに書き込み
@@ -387,6 +433,9 @@ def update_product_master() -> None:
         )
         prod_grouped["検査時間秒"] = prod_grouped["検査時間秒"].round(2)
         
+        # 工程NOを整数型に変換（浮動小数点数を避けるため）
+        prod_grouped["工程NO"] = pd.to_numeric(prod_grouped["工程NO"], errors='coerce').astype('Int64')
+        
         print(f"製品マスタ用の集計が完了しました: {len(prod_grouped)}件")
         
         # 各品番・各工程の集計結果をターミナルに出力
@@ -427,10 +476,14 @@ def update_product_master() -> None:
                 if "品名" in output_data.columns:
                     output_data["品名"] = prod_grouped["品名"].values
                 if "工程番号" in output_data.columns:
-                    output_data["工程番号"] = prod_grouped["工程NO"].values
+                    # 工程番号を整数型に変換（浮動小数点数を避けるため）
+                    output_data["工程番号"] = pd.to_numeric(prod_grouped["工程NO"], errors='coerce').astype('Int64')
             else:
                 columns_to_keep = ["品番", "品名", "工程番号", "検査時間秒"]
                 output_data = output_data[columns_to_keep]
+                # 工程番号を整数型に変換（浮動小数点数を避けるため）
+                if "工程番号" in output_data.columns:
+                    output_data["工程番号"] = pd.to_numeric(output_data["工程番号"], errors='coerce').astype('Int64')
             
             try:
                 with pd.ExcelWriter(PRODUCT_MASTER_XLSX_PATH, engine="openpyxl", mode="w") as writer:
@@ -446,7 +499,8 @@ def update_product_master() -> None:
                 raise
         else:
             # 既存の製品マスタがある場合
-            prod_master["工程番号"] = prod_master["工程番号"].astype(str)
+            # 工程番号を文字列に変換してマージ（既存データとの整合性を保つため）
+            prod_master["工程番号"] = pd.to_numeric(prod_master["工程番号"], errors='coerce').astype('Int64').astype(str)
             prod_grouped["工程NO_str"] = prod_grouped["工程NO"].astype(str)
             
             merged = prod_master.merge(
@@ -465,6 +519,9 @@ def update_product_master() -> None:
                 new_values,
                 merged[PRODUCT_MASTER_AVG_COL]
             )
+            
+            # 工程番号を整数型に変換（浮動小数点数を避けるため）
+            merged["工程番号"] = pd.to_numeric(merged["工程番号"], errors='coerce').astype('Int64')
             
             merged = merged.drop(columns=["工程NO_str", "検査時間秒"])
             
