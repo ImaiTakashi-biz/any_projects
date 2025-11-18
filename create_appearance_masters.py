@@ -167,6 +167,9 @@ def create_skill_master() -> None:
         params = []
         where_clauses = ["[集計除外フラグ] = 0"]  # 集計対象のみ
         
+        # 工程NOが0、1、2の場合は除外
+        where_clauses.append("NOT (ISNUMERIC([工程NO]) AND (VAL([工程NO]) = 0 OR VAL([工程NO]) = 1 OR VAL([工程NO]) = 2))")
+        
         # 工程NOが数字2桁（10-99）の場合は除外
         where_clauses.append("NOT (ISNUMERIC([工程NO]) AND LEN(CSTR([工程NO])) = 2 AND VAL([工程NO]) >= 10 AND VAL([工程NO]) <= 99)")
         
@@ -327,6 +330,10 @@ def update_product_master() -> None:
         params = []
         where_clauses = ["[集計除外フラグ] = 0"]
         
+        # 工程NOが0、1、2の場合は除外
+        where_clauses.append("NOT (ISNUMERIC([工程NO]) AND (VAL([工程NO]) = 0 OR VAL([工程NO]) = 1 OR VAL([工程NO]) = 2))")
+        
+        # 工程NOが数字2桁（10-99）の場合は除外
         where_clauses.append("NOT (ISNUMERIC([工程NO]) AND LEN(CSTR([工程NO])) = 2 AND VAL([工程NO]) >= 10 AND VAL([工程NO]) <= 99)")
         
         if USE_PERIOD_DAYS is not None:
