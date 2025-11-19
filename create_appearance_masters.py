@@ -17,15 +17,15 @@ from datetime import datetime, timedelta
 
 # ========= 工程マスタ作成用設定 =========
 PRODUCT_MASTER_SOURCE_PATH = r"\\192.168.1.200\共有\生産管理課\製品マスター.xls"  # 読み込みファイル（製品マスター）
-PROCESS_MASTER_PATH = r"\\192.168.1.200\共有\dev_tools\外観検査振分支援システム\工程マスタ_auto.xlsx"  # 書き込みファイル（工程マスタ）
+PROCESS_MASTER_PATH = r"\\192.168.1.200\共有\dev_tools\外観検査振分支援システム\master\工程マスタ_auto.xlsx"  # 書き込みファイル（工程マスタ）
 
 # ========= スキルマスタ・製品マスタ更新用設定 =========
 ACCESS_DB_PATH = r"\\192.168.1.200\共有\品質保証課\外観検査記録\外観検査記録照会.accdb"  # Accessファイルのパス
 TABLE_NAME = "t_外観検査集計"  # 実績テーブル名
-EXPORT_CSV_PATH = r"\\192.168.1.200\共有\dev_tools\外観検査振分支援システム\スキルマスタ_auto.csv"  # スキルマスタCSVの出力先
+EXPORT_CSV_PATH = r"\\192.168.1.200\共有\dev_tools\外観検査振分支援システム\master\スキルマスタ_auto.csv"  # スキルマスタCSVの出力先
 
 # 製品マスタ（Excel）の自動更新設定
-PRODUCT_MASTER_XLSX_PATH = r"\\192.168.1.200\共有\dev_tools\外観検査振分支援システム\製品マスタ_auto.xlsx"  # このExcelを自動更新
+PRODUCT_MASTER_XLSX_PATH = r"\\192.168.1.200\共有\dev_tools\外観検査振分支援システム\master\製品マスタ_auto.xlsx"  # このExcelを自動更新
 PRODUCT_MASTER_SHEET_NAME = "Sheet1"
 PRODUCT_MASTER_AVG_COL = "平均 / (作業時間按分)1個当たりの検査時間×60"
 
