@@ -716,7 +716,8 @@ INLINE_TEMPLATE = r"""
     table { width:100%; border-collapse: collapse; font-size: 14px; }
     th, td { padding: 9px 8px; border-bottom: 1px solid #e6eaf2; text-align: right; vertical-align: top; }
     th { text-align: left; background:#f8fafc; position: sticky; top:0; font-weight: 700; color:#344054; }
-    tbody tr:nth-child(even):not(.ai-row) { background:#fcfdff; }
+    tbody tr:not(.ai-row) { background: #ffffff; }
+    tbody tr:nth-child(even):not(.ai-row) { background: #e7f5ff; }
     td.left { text-align: left; }
     td.key, td.name, td.customer, td.num { color:#101828; font-weight:700; white-space: nowrap; }
     td.key { font-size:15px; letter-spacing:.2px; }
@@ -734,11 +735,12 @@ INLINE_TEMPLATE = r"""
       border: 1px solid #dbe4ff;
       border-radius: 6px;
     }
-    .lot-list li { margin: 2px 0; white-space: nowrap; }
-    .lot-tag { font-weight:700; color:#0b5ed7; }
-    .lot-date { margin-left:4px; color:#101828; font-size:0.9em; }
-    .lot-metrics { color:#344054; white-space: nowrap; }
-    .lot-metrics.red { color:#c92a2a; font-weight:600; }
+    .lot-list li { margin: 2px 0; }
+    .lot-tag { font-weight:700; color:#0b5ed7; margin-right: 4px; }
+    .lot-date { color:#101828; font-size:0.9em; margin-right: 4px; }
+    .lot-qty, .lot-ng, .lot-rate { color:#344054; }
+    .lot-breakdown { color:#344054; }
+    .lot-qty.red, .lot-ng.red, .lot-rate.red, .lot-breakdown.red { color:#c92a2a; font-weight:600; }
     /* サマリテーブルのヘッダ/データ位置を一致させる（新レイアウト） */
     table.summary th { white-space: nowrap; }
     table.summary th:nth-child(1),
@@ -841,8 +843,7 @@ INLINE_TEMPLATE = r"""
         margin-bottom:4px;
       }
       .lot-list { width:100%; }
-      .lot-list li { white-space: nowrap; }
-      .lot-metrics { white-space: nowrap; }
+      .lot-list li { white-space: normal; }
       /* AIコメント行はカード外で全幅・左寄せ */
       table.summary tr.ai-row { padding:0; margin:0 0 10px 0; }
       table.summary tr.ai-row td {
@@ -894,7 +895,7 @@ INLINE_TEMPLATE = r"""
             <td class="left customer" data-label="客先名">{{ row.get("客先名","") }}</td>
             <td class="num" data-label="数量合計">{{ "{:,.0f}".format(row["数量合計"]) }}</td>
             <td class="num" data-label="総不具合数合計">{{ "{:,.0f}".format(row["総不具合数合計"]) }}</td>
-            <td>
+            <td data-label="不良率合計">
               {% set rate = row["不良率合計"] %}
               <span class="pill {{ 'blue' if rate == 0 else 'red' }}">{{ "{:.2%}".format(rate) }}</span>
             </td>
@@ -904,15 +905,13 @@ INLINE_TEMPLATE = r"""
                   {% set lot_has_ng = (lot["総不具合数"]|float) > 0 or (lot["不良率"]|float) > 0 %}
                   <li>
                     <span class="lot-tag">{{ lot["号機"] }}</span>
-                    {% if lot["ロット日"] %}<span class="lot-date">{{ lot["ロット日"] }}</span>{% endif %}
-                    <span class="lot-metrics {{ 'red' if lot_has_ng else '' }}">
-                      数量{{ "{:,.0f}".format(lot["数量"]) }},
-                      不良{{ "{:,.0f}".format(lot["総不具合数"]) }}
-                      ({{ "{:.2%}".format(lot["不良率"]) }})
-                      {% if lot["不具合内訳"] and lot["不具合内訳"] != "-" %}
-                        ：{{ lot["不具合内訳"] }}
-                      {% endif %}
-                    </span>
+                    <span class="lot-date">{{ lot["ロット日"] if lot["ロット日"] else "" }}</span>
+                    <span class="lot-qty {{ 'red' if lot_has_ng else '' }}">数量{{ "{:,.0f}".format(lot["数量"]) }}</span>
+                    <span class="lot-ng {{ 'red' if lot_has_ng else '' }}">不良{{ "{:,.0f}".format(lot["総不具合数"]) }}</span>
+                    <span class="lot-rate {{ 'red' if lot_has_ng else '' }}">({{ "{:.2%}".format(lot["不良率"]) }})</span>
+                    {% if lot["不具合内訳"] and lot["不具合内訳"] != "-" %}
+                      <span class="lot-breakdown {{ 'red' if lot_has_ng else '' }}">：{{ lot["不具合内訳"] }}</span>
+                    {% endif %}
                   </li>
                 {% endfor %}
               </ul>
@@ -963,7 +962,7 @@ INLINE_TEMPLATE = r"""
             <td class="left customer" data-label="客先名">{{ row.get("客先名","") }}</td>
             <td class="num" data-label="数量合計">{{ "{:,.0f}".format(row["数量合計"]) }}</td>
             <td class="num" data-label="総不具合数合計">{{ "{:,.0f}".format(row["総不具合数合計"]) }}</td>
-            <td>
+            <td data-label="不良率合計">
               {% set rate = row["不良率合計"] %}
               <span class="pill {{ 'blue' if rate == 0 else 'red' }}">{{ "{:.2%}".format(rate) }}</span>
             </td>
@@ -973,15 +972,13 @@ INLINE_TEMPLATE = r"""
                   {% set lot_has_ng = (lot["総不具合数"]|float) > 0 or (lot["不良率"]|float) > 0 %}
                   <li>
                     <span class="lot-tag">{{ lot["号機"] }}</span>
-                    {% if lot["ロット日"] %}<span class="lot-date">{{ lot["ロット日"] }}</span>{% endif %}
-                    <span class="lot-metrics {{ 'red' if lot_has_ng else '' }}">
-                      数量{{ "{:,.0f}".format(lot["数量"]) }},
-                      不良{{ "{:,.0f}".format(lot["総不具合数"]) }}
-                      ({{ "{:.2%}".format(lot["不良率"]) }})
-                      {% if lot["不具合内訳"] and lot["不具合内訳"] != "-" %}
-                        ：{{ lot["不具合内訳"] }}
-                      {% endif %}
-                    </span>
+                    <span class="lot-date">{{ lot["ロット日"] if lot["ロット日"] else "" }}</span>
+                    <span class="lot-qty {{ 'red' if lot_has_ng else '' }}">数量{{ "{:,.0f}".format(lot["数量"]) }}</span>
+                    <span class="lot-ng {{ 'red' if lot_has_ng else '' }}">不良{{ "{:,.0f}".format(lot["総不具合数"]) }}</span>
+                    <span class="lot-rate {{ 'red' if lot_has_ng else '' }}">({{ "{:.2%}".format(lot["不良率"]) }})</span>
+                    {% if lot["不具合内訳"] and lot["不具合内訳"] != "-" %}
+                      <span class="lot-breakdown {{ 'red' if lot_has_ng else '' }}">：{{ lot["不具合内訳"] }}</span>
+                    {% endif %}
                   </li>
                 {% endfor %}
               </ul>
