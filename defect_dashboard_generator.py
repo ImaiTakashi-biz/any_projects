@@ -12,6 +12,7 @@ import argparse
 import json
 import logging
 import os
+import time
 import warnings
 from dataclasses import dataclass
 from datetime import datetime, timedelta, date
@@ -183,15 +184,19 @@ def build_worst_part_prompt_for_term(
 昨日の不具合: {today_defect_kinds}
 ---
 
-以下の形式で簡潔にまとめてください：
+以下の形式で **必ず** 出力してください（形式厳守）：
 
-① 今日の品質状態の一言評価  
-② 過去傾向と照らして「偶発か再発兆候か」の判断  
-③ 製造が今日すぐ実施すべき対策を 1〜2 行
+① 今日の品質状態の一言評価（1行）
+② 過去傾向と照らして「偶発か再発兆候か」の判断（1行）
+③ 製造が今日すぐ実施すべき対策（1〜2行）
 
-※ 文章は **必ず3〜6行以内**
-※ 詳しい理屈や長い説明は禁止
-※ 読み手が迷わず理解できる表現にすること
+【出力ルール】
+- 必ず①②③の番号から始めること
+- 各項目は1〜2行で完結すること
+- 見出し・タイトル・品番の繰り返しは禁止
+- **や##などのMarkdown装飾は禁止
+- 「製造部各位」「品質報告」などの挨拶文は禁止
+- 合計3〜6行以内に収めること
 """.strip()
 
 
@@ -263,15 +268,19 @@ def build_general_part_prompt(
 昨日の不具合: {today_defect_kinds}
 ---
 
-以下の形式で簡潔にまとめてください：
+以下の形式で **必ず** 出力してください（形式厳守）：
 
-① 今日の品質状態の一言評価  
-② 過去傾向と照らして「偶発か再発兆候か」の判断  
-③ 製造が今日すぐ実施すべき対策を 1〜2 行
+① 今日の品質状態の一言評価（1行）
+② 過去傾向と照らして「偶発か再発兆候か」の判断（1行）
+③ 製造が今日すぐ実施すべき対策（1〜2行）
 
-※ 文章は **必ず3〜6行以内**
-※ 詳しい理屈や長い説明は禁止
-※ 読み手が迷わず理解できる表現にすること
+【出力ルール】
+- 必ず①②③の番号から始めること
+- 各項目は1〜2行で完結すること
+- 見出し・タイトル・品番の繰り返しは禁止
+- **や##などのMarkdown装飾は禁止
+- 「製造部各位」「品質報告」などの挨拶文は禁止
+- 合計3〜6行以内に収めること
 """.strip()
 
 def load_config(path: Optional[str]) -> Config:
@@ -718,6 +727,7 @@ INLINE_TEMPLATE = r"""
     th { text-align: left; background:#f8fafc; position: sticky; top:0; font-weight: 700; color:#344054; }
     tbody tr:not(.ai-row) { background: #ffffff; }
     tbody tr:nth-child(even):not(.ai-row) { background: #e7f5ff; }
+    tbody tr:not(.ai-row) td.lot-cell { background: #ffffff; }
     td.left { text-align: left; }
     td.key, td.name, td.customer, td.num { color:#101828; font-weight:700; white-space: nowrap; }
     td.key { font-size:15px; letter-spacing:.2px; }
@@ -780,11 +790,11 @@ INLINE_TEMPLATE = r"""
     .section-header.worst { background:#ffe3e3; border-color:#ffc9c9; color:#c92a2a; }
     .section-header.normal { background:#eef8f3; border-color:#d3f9d8; color:#0f5132; }
     .section-sub { font-size:11.5px; font-weight:600; color:inherit; opacity:.75; margin-left:auto; }
-    .ai-row td { background:#f9fbff; text-align:left; padding:2px 8px; }
+    .ai-row td { background:#f9fbff; text-align:left; padding:0 8px; }
     .ai-comment {
       background:#f8fafc;
       border-left:3px solid #0b5ed7;
-      padding:4px 10px;
+      padding:2px 10px;
       white-space:pre-line;
       font-size:12.5px;
       line-height:1.55;
@@ -800,7 +810,7 @@ INLINE_TEMPLATE = r"""
       border-left-color:#d0d5dd;
       color:#667085;
     }
-    .ai-title { font-size:12px; font-weight:700; margin:0 0 1px; color:#0b5ed7; letter-spacing:.2px;}
+    .ai-title { font-size:12px; font-weight:700; margin:0; color:#0b5ed7; letter-spacing:.2px; line-height:1.2; }
     .ai-meta { font-size:11px; color:#98a2b3; margin-left:6px; font-weight:500; }
     @media (max-width: 768px) {
       main { padding: 12px; }
@@ -1139,6 +1149,8 @@ def generate_dashboard(run_date: datetime, cfg: Config) -> Path:
                 if _GEMINI_QUOTA_EXCEEDED:
                     ai_status = "Gemini API のクォータ上限に達したため、以降のAIコメント生成を停止しました。"
                     break
+                # レートリミット対策: API呼び出し間に4秒の遅延を追加
+                time.sleep(4)
         except Exception as e:
             ai_status = f"Gemini コメント生成に失敗しました（{e.__class__.__name__}）。"
             logging.warning("Gemini comment generation skipped: %s", e)
