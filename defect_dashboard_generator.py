@@ -878,20 +878,15 @@ INLINE_TEMPLATE = r"""
     /* ========== ロット一覧 ========== */
     .lot-list {
       margin: 0;
-      padding: 10px 12px 10px 24px;
+      padding: 0 0 0 20px;
       font-size: 13px;
       line-height: 1.6;
-      background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-      border: 1px solid #e2e8f0;
-      border-radius: 10px;
-      list-style-type: none;
+      list-style-type: disc;
     }
-    .lot-list li { 
-      margin: 4px 0; 
-      padding: 4px 0;
-      border-bottom: 1px dashed #e2e8f0;
+    .lot-list li {
+      margin: 2px 0;
+      padding: 0;
     }
-    .lot-list li:last-child { border-bottom: none; }
     .lot-tag { 
       font-weight: 700; 
       color: #2563eb;
@@ -909,25 +904,13 @@ INLINE_TEMPLATE = r"""
       font-weight: 600;
     }
     
-    /* ========== 不良率バッジ ========== */
-    .pill { 
-      display: inline-block; 
-      padding: 4px 12px; 
-      border-radius: 20px; 
-      font-weight: 700; 
+    /* ========== 不良率テキスト ========== */
+    .rate-text {
+      font-weight: 600;
       font-size: 13px;
-      min-width: 60px;
-      text-align: center;
     }
-    .pill.blue { 
-      background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
-      color: #1d4ed8;
-      border: 1px solid #bfdbfe;
-    }
-    .pill.red { 
-      background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+    .rate-text.red {
       color: #dc2626;
-      border: 1px solid #fecaca;
     }
     
     /* ========== テーブル配置 ========== */
@@ -1096,9 +1079,9 @@ INLINE_TEMPLATE = r"""
             <td class="left customer" data-label="客先名">{{ row.get("客先名","") }}</td>
             <td class="num" data-label="数量合計">{{ "{:,.0f}".format(row["数量合計"]) }}</td>
             <td class="num" data-label="総不具合数合計">{{ "{:,.0f}".format(row["総不具合数合計"]) }}</td>
-            <td data-label="不良率合計">
+            <td class="num" data-label="不良率合計">
               {% set rate = row["不良率合計"] %}
-              <span class="pill {{ 'blue' if rate == 0 else 'red' }}">{{ "{:.2%}".format(rate) }}</span>
+              <span class="rate-text {{ 'red' if rate > 0 else '' }}">{{ "{:.2%}".format(rate) }}</span>
             </td>
             <td class="left lot-cell" data-label="ロット一覧">
               <ul class="lot-list">
@@ -1156,9 +1139,9 @@ INLINE_TEMPLATE = r"""
             <td class="left customer" data-label="客先名">{{ row.get("客先名","") }}</td>
             <td class="num" data-label="数量合計">{{ "{:,.0f}".format(row["数量合計"]) }}</td>
             <td class="num" data-label="総不具合数合計">{{ "{:,.0f}".format(row["総不具合数合計"]) }}</td>
-            <td data-label="不良率合計">
+            <td class="num" data-label="不良率合計">
               {% set rate = row["不良率合計"] %}
-              <span class="pill {{ 'blue' if rate == 0 else 'red' }}">{{ "{:.2%}".format(rate) }}</span>
+              <span class="rate-text {{ 'red' if rate > 0 else '' }}">{{ "{:.2%}".format(rate) }}</span>
             </td>
             <td class="left lot-cell" data-label="ロット一覧">
               <ul class="lot-list">
