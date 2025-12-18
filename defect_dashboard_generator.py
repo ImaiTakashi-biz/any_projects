@@ -824,7 +824,7 @@ INLINE_TEMPLATE = r"""
       margin-left: auto;
     }
     .section-note {
-      color: #9ca3af;
+      color: #6b7280;
       font-weight: 400;
     }
     
@@ -889,9 +889,13 @@ INLINE_TEMPLATE = r"""
       color: #dc2626; 
       font-weight: 600;
     }
-    /* 不良なしロットはグレーアウト */
-    .lot-list li.no-defect { opacity: 0.5; }
-    .lot-list li.no-defect .lot-tag { color: #94a3b8; }
+    /* 不良率1%以下のロットはグレーアウト */
+    .lot-list li.no-defect { color: #6b7280; }
+    .lot-list li.no-defect .lot-tag { color: #6b7280; }
+    .lot-list li.no-defect .lot-qty,
+    .lot-list li.no-defect .lot-ng,
+    .lot-list li.no-defect .lot-rate,
+    .lot-list li.no-defect .lot-breakdown { color: #6b7280; }
     
     /* ========== 不良率テキスト ========== */
     .rate-text {
@@ -1075,7 +1079,7 @@ INLINE_TEMPLATE = r"""
             <td class="left lot-cell" data-label="ロット一覧">
               <ul class="lot-list">
                 {% for lot in row["ロット一覧"] %}
-                  {% set lot_has_ng = (lot["総不具合数"]|float) > 0 or (lot["不良率"]|float) > 0 %}
+                  {% set lot_has_ng = (lot["不良率"]|float) > 0.01 %}
                   <li class="{{ '' if lot_has_ng else 'no-defect' }}">
                     <span class="lot-tag">{{ lot["号機"] }}</span>
                     <span class="lot-date">{{ lot["ロット日"] if lot["ロット日"] else "" }}</span>
@@ -1135,7 +1139,7 @@ INLINE_TEMPLATE = r"""
             <td class="left lot-cell" data-label="ロット一覧">
               <ul class="lot-list">
                 {% for lot in row["ロット一覧"] %}
-                  {% set lot_has_ng = (lot["総不具合数"]|float) > 0 or (lot["不良率"]|float) > 0 %}
+                  {% set lot_has_ng = (lot["不良率"]|float) > 0.01 %}
                   <li class="{{ '' if lot_has_ng else 'no-defect' }}">
                     <span class="lot-tag">{{ lot["号機"] }}</span>
                     <span class="lot-date">{{ lot["ロット日"] if lot["ロット日"] else "" }}</span>
@@ -1160,7 +1164,7 @@ INLINE_TEMPLATE = r"""
           {% endfor %}
         </tbody>
       </table>
-      <div class="muted">ワースト製品: {{ worst_lot_count }}ロット（不具合なし含む） / サマリー: {{ normal_lot_count }}ロット（不具合ありのみ）</div>
+      <div class="muted">ワースト製品: {{ worst_lot_count }}ロット（不具合なし含む） / サマリー: {{ normal_lot_count }}ロット（不良率1%超）</div>
     </div>
 
   </main>
@@ -1215,10 +1219,10 @@ def generate_dashboard(run_date: datetime, cfg: Config) -> Path:
         mask_worst = today_summary["品番"].astype(str).isin(worst_set)
         # ワースト品番: 不具合なしロットも含めて全て表示
         worst_today_summary = today_summary.loc[mask_worst].copy()
-        # 通常品番: 不具合ありのみ表示
+        # 通常品番: 不良率 > 1% のみ表示
         normal_today_summary_all = today_summary.loc[~mask_worst].copy()
-        if "総不具合数" in normal_today_summary_all.columns:
-            normal_today_summary = normal_today_summary_all[normal_today_summary_all["総不具合数"] > 0].copy()
+        if "不良率" in normal_today_summary_all.columns:
+            normal_today_summary = normal_today_summary_all[normal_today_summary_all["不良率"] > 0.01].copy()
         else:
             normal_today_summary = normal_today_summary_all.copy()
     else:
