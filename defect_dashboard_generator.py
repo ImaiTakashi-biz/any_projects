@@ -787,9 +787,10 @@ INLINE_TEMPLATE = r"""
     main { padding: 24px 28px; max-width: 1280px; margin: 0 auto; }
     .card { 
       background: white; 
-      border-radius: 16px; 
+      border-radius: 12px; 
       padding: 20px 24px; 
-      box-shadow: 0 2px 12px rgba(16,24,40,0.08), 0 1px 3px rgba(16,24,40,0.04);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+      border: 1px solid #e5e7eb;
       margin-bottom: 20px;
     }
     
@@ -797,68 +798,53 @@ INLINE_TEMPLATE = r"""
     .section-header {
       display: flex;
       align-items: center;
-      gap: 10px;
-      padding: 12px 16px;
-      margin: 4px 0 16px;
-      border-radius: 12px;
-      font-weight: 700;
-      font-size: 17px;
-      letter-spacing: 0.3px;
-      transition: transform 0.2s ease;
+      gap: 8px;
+      padding: 10px 14px;
+      margin: 4px 0 14px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 15px;
     }
-    .section-header .icon { font-size: 20px; }
+    .section-header .icon { font-size: 16px; }
     .section-header.worst { 
-      background: linear-gradient(135deg, #fff5f5 0%, #ffe3e3 100%);
-      border: 1px solid #ffc9c9;
-      color: #c92a2a;
-      box-shadow: 0 2px 8px rgba(201, 42, 42, 0.1);
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      color: #dc2626;
     }
     .section-header.normal { 
-      background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+      background: #f0fdf4;
       border: 1px solid #bbf7d0;
-      color: #166534;
-      box-shadow: 0 2px 8px rgba(22, 101, 52, 0.08);
+      color: #16a34a;
     }
     .section-sub { 
-      font-size: 12px; 
-      font-weight: 600; 
+      font-size: 11px; 
+      font-weight: 500; 
       color: inherit; 
       opacity: 0.7; 
       margin-left: auto;
-      background: rgba(255,255,255,0.5);
-      padding: 4px 10px;
-      border-radius: 20px;
     }
     
     /* ========== テーブル ========== */
     table { width: 100%; border-collapse: collapse; font-size: 14px; }
-    th, td { padding: 12px 10px; border-bottom: 1px solid #e9ecef; text-align: right; vertical-align: top; }
+    th, td { padding: 12px 10px; text-align: right; vertical-align: top; }
     th { 
       text-align: left; 
-      background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+      background: #f8fafc;
       position: sticky; 
       top: 0; 
-      font-weight: 700; 
-      color: #475569;
-      font-size: 13px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      border-bottom: 2px solid #e2e8f0;
+      font-weight: 600; 
+      color: #64748b;
+      font-size: 12px;
+      letter-spacing: 0.3px;
+      border-bottom: 1px solid #e2e8f0;
     }
     tbody tr:not(.ai-row) {
-      background: linear-gradient(to bottom, #f0f7ff 0%, #ffffff 100%);
+      background: #ffffff;
       transition: background 0.15s ease;
     }
     tbody tr:not(.ai-row):hover {
-      background: linear-gradient(to bottom, #e0efff 0%, #f8fafc 100%);
+      background: #f8fafc;
     }
-    tbody tr:nth-child(even):not(.ai-row) { 
-      background: linear-gradient(to bottom, #e8f4fd 0%, #f8fbff 100%); 
-    }
-    tbody tr:nth-child(even):not(.ai-row):hover { 
-      background: linear-gradient(to bottom, #d8ebfc 0%, #f1f5f9 100%); 
-    }
-    tbody tr:not(.ai-row) td.lot-cell { background: transparent; }
     td.left { text-align: left; }
     td.key, td.name, td.customer, td.num { color: #1e293b; font-weight: 600; white-space: nowrap; font-size: 14px; }
     td.key { font-weight: 700; }
@@ -867,12 +853,11 @@ INLINE_TEMPLATE = r"""
     /* ========== バッジ ========== */
     .tag-badge { 
       display: inline-block; 
-      width: 8px; 
-      height: 8px; 
-      margin-right: 10px; 
+      width: 6px; 
+      height: 6px; 
+      margin-right: 8px; 
       border-radius: 50%; 
-      background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-      box-shadow: 0 2px 4px rgba(59, 130, 246, 0.4);
+      background: #3b82f6;
     }
     
     /* ========== ロット一覧 ========== */
@@ -888,26 +873,26 @@ INLINE_TEMPLATE = r"""
       padding: 0;
     }
     .lot-tag { 
-      font-weight: 700; 
-      color: #2563eb;
-      background: #eff6ff;
-      padding: 2px 8px;
-      border-radius: 6px;
-      margin-right: 6px;
+      font-weight: 600; 
+      color: #3b82f6;
+      margin-right: 4px;
       font-size: 13px;
     }
-    .lot-date { color: #1e293b; font-size: 13px; margin-right: 8px; font-weight: 500; }
-    .lot-qty, .lot-ng, .lot-rate { color: #1e293b; font-size: 13px; }
-    .lot-breakdown { color: #1e293b; font-size: 13px; }
+    .lot-date { color: #64748b; font-size: 13px; margin-right: 6px; }
+    .lot-qty, .lot-ng, .lot-rate { color: #475569; font-size: 13px; }
+    .lot-breakdown { color: #475569; font-size: 13px; }
     .lot-qty.red, .lot-ng.red, .lot-rate.red, .lot-breakdown.red { 
       color: #dc2626; 
       font-weight: 600;
     }
+    /* 不良なしロットはグレーアウト */
+    .lot-list li.no-defect { opacity: 0.5; }
+    .lot-list li.no-defect .lot-tag { color: #94a3b8; }
     
     /* ========== 不良率テキスト ========== */
     .rate-text {
       font-weight: 600;
-      font-size: 13px;
+      font-size: 14px;
     }
     .rate-text.red {
       color: #dc2626;
@@ -931,40 +916,40 @@ INLINE_TEMPLATE = r"""
     table.summary td:nth-child(6) { text-align: right; }
     
     /* ========== AIコメント ========== */
-    .ai-row td { background: transparent; text-align: left; padding: 2px 10px 4px; }
+    .ai-row td { background: transparent; text-align: left; padding: 2px 10px 12px; border-bottom: 1px solid #e5e7eb; }
     .ai-comment {
-      background: linear-gradient(135deg, #fefefe 0%, #f8fafc 100%);
-      border-left: 4px solid #3b82f6;
-      padding: 6px 12px;
+      background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%);
+      border-left: 4px solid #8b5cf6;
+      padding: 8px 14px;
       white-space: pre-line;
       font-size: 13px;
       line-height: 1.6;
       text-align: left;
-      border-radius: 0 8px 8px 0;
-      color: #334155;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+      border-radius: 0 10px 10px 0;
+      color: #374151;
     }
     .ai-comment ol, .ai-comment ul { margin: 4px 0 0 20px; padding: 0; }
     .ai-comment li { margin: 2px 0; }
     .ai-comment p { margin: 0 0 4px; }
     .ai-comment.empty {
       background: #fafafa;
-      border-left-color: #d1d5db;
+      border-left-color: #e5e7eb;
       color: #9ca3af;
+      padding: 6px 14px;
     }
     .ai-title { 
       display: block;
       font-size: 12px; 
       font-weight: 700; 
-      color: #3b82f6;
+      color: #7c3aed;
       margin-bottom: 4px;
     }
+    .ai-comment.empty .ai-title { color: #9ca3af; }
     .ai-content { 
       display: block;
       padding-left: 8px;
     }
     .ai-content br { display: block; margin-bottom: 2px; }
-    .ai-meta { font-size: 10px; color: #9ca3af; margin-left: 8px; font-weight: 500; }
     
     /* ========== その他 ========== */
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -1087,7 +1072,7 @@ INLINE_TEMPLATE = r"""
               <ul class="lot-list">
                 {% for lot in row["ロット一覧"] %}
                   {% set lot_has_ng = (lot["総不具合数"]|float) > 0 or (lot["不良率"]|float) > 0 %}
-                  <li>
+                  <li class="{{ '' if lot_has_ng else 'no-defect' }}">
                     <span class="lot-tag">{{ lot["号機"] }}</span>
                     <span class="lot-date">{{ lot["ロット日"] if lot["ロット日"] else "" }}</span>
                     <span class="lot-qty {{ 'red' if lot_has_ng else '' }}">数量{{ "{:,.0f}".format(lot["数量"]) }}</span>
@@ -1105,7 +1090,7 @@ INLINE_TEMPLATE = r"""
           {% set has_ai = ai_comments.get(hinban_key) %}
           <tr class="ai-row">
             <td colspan="7">
-              <div class="ai-comment {{ 'empty' if not has_ai else '' }}"><span class="ai-title">AI分析コメント{% if not has_ai %}（未生成）{% endif %}</span><span class="ai-content">{% if has_ai %}{{ has_ai }}{% else %}{{ ai_status if ai_status else "AIコメントは生成されていません。（Gemini未設定／クォータ超過／対象データ不足など）" }}{% endif %}</span></div>
+              <div class="ai-comment {{ 'empty' if not has_ai else '' }}"><span class="ai-title">{% if has_ai %}✨ {% endif %}AI分析</span><span class="ai-content">{% if has_ai %}{{ has_ai }}{% else %}-{% endif %}</span></div>
             </td>
           </tr>
           {% endfor %}
@@ -1147,7 +1132,7 @@ INLINE_TEMPLATE = r"""
               <ul class="lot-list">
                 {% for lot in row["ロット一覧"] %}
                   {% set lot_has_ng = (lot["総不具合数"]|float) > 0 or (lot["不良率"]|float) > 0 %}
-                  <li>
+                  <li class="{{ '' if lot_has_ng else 'no-defect' }}">
                     <span class="lot-tag">{{ lot["号機"] }}</span>
                     <span class="lot-date">{{ lot["ロット日"] if lot["ロット日"] else "" }}</span>
                     <span class="lot-qty {{ 'red' if lot_has_ng else '' }}">数量{{ "{:,.0f}".format(lot["数量"]) }}</span>
@@ -1165,7 +1150,7 @@ INLINE_TEMPLATE = r"""
           {% set has_ai = ai_comments.get(hinban_key) %}
           <tr class="ai-row">
             <td colspan="7">
-              <div class="ai-comment {{ 'empty' if not has_ai else '' }}"><span class="ai-title">AI分析コメント{% if not has_ai %}（未生成）{% endif %}</span><span class="ai-content">{% if has_ai %}{{ has_ai }}{% else %}{{ ai_status if ai_status else "AIコメントは生成されていません。（Gemini未設定／クォータ超過／対象データ不足など）" }}{% endif %}</span></div>
+              <div class="ai-comment {{ 'empty' if not has_ai else '' }}"><span class="ai-title">{% if has_ai %}✨ {% endif %}AI分析</span><span class="ai-content">{% if has_ai %}{{ has_ai }}{% else %}-{% endif %}</span></div>
             </td>
           </tr>
           {% endfor %}
