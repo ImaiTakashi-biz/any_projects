@@ -1,0 +1,1423 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8"/>
+  <title>Defect Dashboard 2025-12-17</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <style>
+    /* ========== ベーススタイル ========== */
+    * { box-sizing: border-box; }
+    body { 
+      font-family: 'Segoe UI', 'Hiragino Sans', 'Meiryo', system-ui, sans-serif; 
+      margin: 0; 
+      background: linear-gradient(135deg, #f5f7fa 0%, #e4e8f0 100%);
+      color:#1a1f36; 
+      line-height: 1.6;
+    }
+    
+    /* ========== ヘッダー ========== */
+    header { 
+      background: linear-gradient(135deg, #1e3a5f 0%, #0d47a1 50%, #1565c0 100%);
+      padding: 20px 28px; 
+      color: white; 
+      position: relative; 
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(13, 71, 161, 0.3);
+    }
+    header:before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      right: -10%;
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+      border-radius: 50%;
+    }
+    header:after { 
+      content: '';
+      position: absolute;
+      bottom: -30%;
+      left: 20%;
+      width: 300px;
+      height: 300px;
+      background: radial-gradient(circle, rgba(255,255,255,0.05) 0%, transparent 70%);
+      border-radius: 50%;
+    }
+    .header-inner { display:flex; align-items:center; gap:16px; position:relative; z-index:1; }
+    .brand-logo { 
+      height: 50px; 
+      width: auto; 
+      background: white;
+      padding: 8px 10px; 
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    .brand-text { display:flex; flex-direction:column; gap:4px; }
+    .brand-title { 
+      font-weight: 800; 
+      font-size: 24px; 
+      letter-spacing: 0.5px; 
+      line-height: 1.2;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    .brand-subtitle { 
+      opacity: 0.9; 
+      font-weight: 500; 
+      font-size: 14px;
+      letter-spacing: 0.3px;
+    }
+    
+    /* ========== メインコンテンツ ========== */
+    main { padding: 24px 28px; max-width: 1280px; margin: 0 auto; }
+    .card { 
+      background: white; 
+      border-radius: 12px; 
+      padding: 20px 24px; 
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+      border: 1px solid #e5e7eb;
+      margin-bottom: 20px;
+    }
+    
+    /* ========== セクションヘッダー ========== */
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      margin: 4px 0 14px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 15px;
+    }
+    .section-header .icon { font-size: 16px; }
+    .section-header.worst { 
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      color: #dc2626;
+    }
+    .section-header.normal { 
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      color: #16a34a;
+    }
+    .section-sub { 
+      font-size: 11px; 
+      font-weight: 500; 
+      color: inherit; 
+      opacity: 0.7; 
+      margin-left: auto;
+    }
+    
+    /* ========== テーブル ========== */
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { padding: 12px 10px; text-align: right; vertical-align: top; }
+    th { 
+      text-align: left; 
+      background: #f8fafc;
+      position: sticky; 
+      top: 0; 
+      font-weight: 600; 
+      color: #64748b;
+      font-size: 12px;
+      letter-spacing: 0.3px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    tbody tr:not(.ai-row) {
+      background: #ffffff;
+      transition: background 0.15s ease;
+    }
+    tbody tr:not(.ai-row):hover {
+      background: #f8fafc;
+    }
+    td.left { text-align: left; }
+    td.key, td.name, td.customer, td.num { color: #1e293b; font-weight: 600; white-space: nowrap; font-size: 14px; }
+    td.key { font-weight: 700; }
+    td.num { font-variant-numeric: tabular-nums; }
+    
+    /* ========== バッジ ========== */
+    .tag-badge { 
+      display: inline-block; 
+      width: 6px; 
+      height: 6px; 
+      margin-right: 8px; 
+      border-radius: 50%; 
+      background: #3b82f6;
+    }
+    
+    /* ========== ロット一覧 ========== */
+    .lot-list {
+      margin: 0;
+      padding: 0 0 0 20px;
+      font-size: 13px;
+      line-height: 1.6;
+      list-style-type: disc;
+    }
+    .lot-list li {
+      margin: 2px 0;
+      padding: 0;
+    }
+    .lot-tag { 
+      font-weight: 600; 
+      color: #3b82f6;
+      margin-right: 4px;
+      font-size: 13px;
+    }
+    .lot-date { color: #64748b; font-size: 13px; margin-right: 6px; }
+    .lot-qty, .lot-ng, .lot-rate { color: #475569; font-size: 13px; }
+    .lot-breakdown { color: #475569; font-size: 13px; }
+    .lot-qty.red, .lot-ng.red, .lot-rate.red, .lot-breakdown.red { 
+      color: #dc2626; 
+      font-weight: 600;
+    }
+    /* 不良なしロットはグレーアウト */
+    .lot-list li.no-defect { opacity: 0.5; }
+    .lot-list li.no-defect .lot-tag { color: #94a3b8; }
+    
+    /* ========== 不良率テキスト ========== */
+    .rate-text {
+      font-weight: 600;
+      font-size: 14px;
+    }
+    .rate-text.red {
+      color: #dc2626;
+    }
+    
+    /* ========== テーブル配置 ========== */
+    table.summary th { white-space: nowrap; }
+    table.summary th:nth-child(1),
+    table.summary th:nth-child(2),
+    table.summary th:nth-child(3),
+    table.summary th:nth-child(7) { text-align: left; }
+    table.summary th:nth-child(4),
+    table.summary th:nth-child(5),
+    table.summary th:nth-child(6) { text-align: right; }
+    table.summary td:nth-child(1),
+    table.summary td:nth-child(2),
+    table.summary td:nth-child(3),
+    table.summary td:nth-child(7) { text-align: left; }
+    table.summary td:nth-child(4),
+    table.summary td:nth-child(5),
+    table.summary td:nth-child(6) { text-align: right; }
+    
+    /* ========== AIコメント ========== */
+    .ai-row td { background: transparent; text-align: left; padding: 2px 10px 12px; border-bottom: 1px solid #e5e7eb; }
+    .ai-comment {
+      background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%);
+      border-left: 4px solid #8b5cf6;
+      padding: 8px 14px;
+      white-space: pre-line;
+      font-size: 13px;
+      line-height: 1.6;
+      text-align: left;
+      border-radius: 0 10px 10px 0;
+      color: #374151;
+    }
+    .ai-comment ol, .ai-comment ul { margin: 4px 0 0 20px; padding: 0; }
+    .ai-comment li { margin: 2px 0; }
+    .ai-comment p { margin: 0 0 4px; }
+    .ai-comment.empty {
+      background: #fafafa;
+      border-left-color: #e5e7eb;
+      color: #9ca3af;
+      padding: 6px 14px;
+    }
+    .ai-title { 
+      display: block;
+      font-size: 12px; 
+      font-weight: 700; 
+      color: #7c3aed;
+      margin-bottom: 4px;
+    }
+    .ai-comment.empty .ai-title { color: #9ca3af; }
+    .ai-content { 
+      display: block;
+      padding-left: 8px;
+    }
+    .ai-content br { display: block; margin-bottom: 2px; }
+    
+    /* ========== その他 ========== */
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .muted { 
+      color: #64748b; 
+      font-size: 13px;
+      padding: 12px 0 4px;
+      border-top: 1px solid #e2e8f0;
+      margin-top: 16px;
+    }
+    
+    /* ========== レスポンシブ ========== */
+    @media (max-width: 768px) {
+      main { padding: 16px; }
+      table { font-size: 13px; }
+      .grid { grid-template-columns: 1fr; }
+      .brand-logo { height: 40px; }
+      .brand-title { font-size: 20px; }
+      .card { padding: 16px; border-radius: 12px; }
+    }
+    @media (max-width: 640px) {
+      table.summary thead { display: none; }
+      table.summary, table.summary tbody, table.summary tr { display: block; width: 100%; }
+      table.summary tr:not(.ai-row) {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 12px;
+        margin: 0 0 12px 0;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+      }
+      table.summary td {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 6px 0;
+        border-bottom: none;
+        text-align: right;
+      }
+      table.summary td::before {
+        content: attr(data-label);
+        font-weight: 600;
+        color: #64748b;
+        flex: 0 0 40%;
+        text-align: left;
+        font-size: 12px;
+      }
+      table.summary td.lot-cell {
+        display: block;
+        padding-top: 10px;
+      }
+      table.summary td.lot-cell::before {
+        display: block;
+        margin-bottom: 8px;
+      }
+      .lot-list { width: 100%; }
+      .lot-list li { white-space: normal; }
+      table.summary tr.ai-row { padding: 0; margin: 0 0 12px 0; }
+      table.summary tr.ai-row td {
+        display: block;
+        padding: 0;
+        text-align: left;
+      }
+      table.summary tr.ai-row td::before { content: none; }
+      .ai-comment { width: 100%; box-sizing: border-box; }
+    }
+    footer { 
+      text-align: center; 
+      padding: 16px; 
+      color: #94a3b8; 
+      font-size: 12px;
+      background: #f8fafc;
+      border-top: 1px solid #e2e8f0;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <img class="brand-logo" src="data:image/png;base64,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" alt="ARAI logo"/>
+      <div class="brand-text">
+        <div class="brand-title">Defect Dashboard</div>
+        <div class="brand-subtitle">検査日: 2025-12-17</div>
+      </div>
+    </div>
+  </header>
+  <main>
+    <div class="card">
+      
+      <div class="section-header worst">
+        <span class="icon">⚠</span>
+        <span>41期ワースト製品（12/17分）</span>
+        <span class="section-sub">重点監視対象</span>
+      </div>
+      <table class="summary">
+        <thead>
+          <tr>
+            <th>品番</th>
+            <th>品名</th>
+            <th>客先名</th>
+            <th>数量合計</th>
+            <th>総不具合数合計</th>
+            <th>不良率合計</th>
+            <th>ロット一覧（不良率高い順）</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+          <tr>
+            <td class="left key" data-label="品番"><span class="tag-badge"></span>06131-01710R</td>
+            <td class="left name" data-label="品名">ﾌﾟﾗﾝｼﾞｬ</td>
+            <td class="left customer" data-label="客先名">不二テクノス</td>
+            <td class="num" data-label="数量合計">2,186</td>
+            <td class="num" data-label="総不具合数合計">71</td>
+            <td class="num" data-label="不良率合計">
+              
+              <span class="rate-text red">3.25%</span>
+            </td>
+            <td class="left lot-cell" data-label="ロット一覧">
+              <ul class="lot-list">
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">E-10</span>
+                    <span class="lot-date">11/30</span>
+                    <span class="lot-qty red">数量1,078</span>
+                    <span class="lot-ng red">不良51</span>
+                    <span class="lot-rate red">(4.73%)</span>
+                    
+                      <span class="lot-breakdown red">：外観キズ49、落下2</span>
+                    
+                  </li>
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">E-10</span>
+                    <span class="lot-date">11/29</span>
+                    <span class="lot-qty red">数量1,108</span>
+                    <span class="lot-ng red">不良20</span>
+                    <span class="lot-rate red">(1.81%)</span>
+                    
+                      <span class="lot-breakdown red">：その他20</span>
+                    
+                  </li>
+                
+              </ul>
+            </td>
+          </tr>
+          
+          
+          <tr class="ai-row">
+            <td colspan="7">
+              <div class="ai-comment empty"><span class="ai-title">AI分析</span><span class="ai-content">-</span></div>
+            </td>
+          </tr>
+          
+          <tr>
+            <td class="left key" data-label="品番"><span class="tag-badge"></span>06081-03911K</td>
+            <td class="left name" data-label="品名">ｷｭｳｲﾝｼ</td>
+            <td class="left customer" data-label="客先名">不二テクノス</td>
+            <td class="num" data-label="数量合計">3,275</td>
+            <td class="num" data-label="総不具合数合計">9</td>
+            <td class="num" data-label="不良率合計">
+              
+              <span class="rate-text red">0.27%</span>
+            </td>
+            <td class="left lot-cell" data-label="ロット一覧">
+              <ul class="lot-list">
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">D-3</span>
+                    <span class="lot-date">12/17</span>
+                    <span class="lot-qty red">数量661</span>
+                    <span class="lot-ng red">不良3</span>
+                    <span class="lot-rate red">(0.45%)</span>
+                    
+                      <span class="lot-breakdown red">：外観キズ2、圧痕1</span>
+                    
+                  </li>
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">D-8</span>
+                    <span class="lot-date">12/16</span>
+                    <span class="lot-qty red">数量999</span>
+                    <span class="lot-ng red">不良4</span>
+                    <span class="lot-rate red">(0.40%)</span>
+                    
+                      <span class="lot-breakdown red">：毟れ4</span>
+                    
+                  </li>
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">D-8</span>
+                    <span class="lot-date">12/17</span>
+                    <span class="lot-qty red">数量644</span>
+                    <span class="lot-ng red">不良1</span>
+                    <span class="lot-rate red">(0.16%)</span>
+                    
+                      <span class="lot-breakdown red">：落下1</span>
+                    
+                  </li>
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">D-1</span>
+                    <span class="lot-date">12/17</span>
+                    <span class="lot-qty red">数量971</span>
+                    <span class="lot-ng red">不良1</span>
+                    <span class="lot-rate red">(0.10%)</span>
+                    
+                      <span class="lot-breakdown red">：圧痕1</span>
+                    
+                  </li>
+                
+              </ul>
+            </td>
+          </tr>
+          
+          
+          <tr class="ai-row">
+            <td colspan="7">
+              <div class="ai-comment empty"><span class="ai-title">AI分析</span><span class="ai-content">-</span></div>
+            </td>
+          </tr>
+          
+        </tbody>
+      </table>
+      <div style="height:12px"></div>
+      
+
+      <div class="section-header normal">
+        <span class="icon">📋</span>
+        <span>12/17サマリー</span>
+        <span class="section-sub">検査結果一覧</span>
+      </div>
+      <table class="summary">
+        <thead>
+          <tr>
+            <th>品番</th>
+            <th>品名</th>
+            <th>客先名</th>
+            <th>数量合計</th>
+            <th>総不具合数合計</th>
+            <th>不良率合計</th>
+            <th>ロット一覧（不良率高い順）</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+          <tr>
+            <td class="left key" data-label="品番"><span class="tag-badge"></span>Z42140088-001</td>
+            <td class="left name" data-label="品名">ORIFICE;PIEZO</td>
+            <td class="left customer" data-label="客先名">トラストパーツ</td>
+            <td class="num" data-label="数量合計">818</td>
+            <td class="num" data-label="総不具合数合計">40</td>
+            <td class="num" data-label="不良率合計">
+              
+              <span class="rate-text red">4.89%</span>
+            </td>
+            <td class="left lot-cell" data-label="ロット一覧">
+              <ul class="lot-list">
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">C-9</span>
+                    <span class="lot-date">12/14</span>
+                    <span class="lot-qty red">数量367</span>
+                    <span class="lot-ng red">不良21</span>
+                    <span class="lot-rate red">(5.72%)</span>
+                    
+                      <span class="lot-breakdown red">：圧痕4、切粉7、挽目10</span>
+                    
+                  </li>
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">C-9</span>
+                    <span class="lot-date">12/13</span>
+                    <span class="lot-qty red">数量451</span>
+                    <span class="lot-ng red">不良19</span>
+                    <span class="lot-rate red">(4.21%)</span>
+                    
+                      <span class="lot-breakdown red">：外観キズ2、圧痕3、挽目14</span>
+                    
+                  </li>
+                
+              </ul>
+            </td>
+          </tr>
+          
+          
+          <tr class="ai-row">
+            <td colspan="7">
+              <div class="ai-comment empty"><span class="ai-title">AI分析</span><span class="ai-content">-</span></div>
+            </td>
+          </tr>
+          
+          <tr>
+            <td class="left key" data-label="品番"><span class="tag-badge"></span>MHK1226P-1</td>
+            <td class="left name" data-label="品名">照明取付枠</td>
+            <td class="left customer" data-label="客先名">京セラ</td>
+            <td class="num" data-label="数量合計">725</td>
+            <td class="num" data-label="総不具合数合計">20</td>
+            <td class="num" data-label="不良率合計">
+              
+              <span class="rate-text red">2.76%</span>
+            </td>
+            <td class="left lot-cell" data-label="ロット一覧">
+              <ul class="lot-list">
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">A-1</span>
+                    <span class="lot-date">12/13</span>
+                    <span class="lot-qty red">数量460</span>
+                    <span class="lot-ng red">不良13</span>
+                    <span class="lot-rate red">(2.83%)</span>
+                    
+                      <span class="lot-breakdown red">：外観キズ11、その他2</span>
+                    
+                  </li>
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">A-1</span>
+                    <span class="lot-date">12/14</span>
+                    <span class="lot-qty red">数量265</span>
+                    <span class="lot-ng red">不良7</span>
+                    <span class="lot-rate red">(2.64%)</span>
+                    
+                      <span class="lot-breakdown red">：外観キズ6、その他1</span>
+                    
+                  </li>
+                
+              </ul>
+            </td>
+          </tr>
+          
+          
+          <tr class="ai-row">
+            <td colspan="7">
+              <div class="ai-comment empty"><span class="ai-title">AI分析</span><span class="ai-content">-</span></div>
+            </td>
+          </tr>
+          
+          <tr>
+            <td class="left key" data-label="品番"><span class="tag-badge"></span>MHK1018G-1</td>
+            <td class="left name" data-label="品名">18番ﾚﾝｽﾞ枠</td>
+            <td class="left customer" data-label="客先名">京セラ</td>
+            <td class="num" data-label="数量合計">959</td>
+            <td class="num" data-label="総不具合数合計">25</td>
+            <td class="num" data-label="不良率合計">
+              
+              <span class="rate-text red">2.61%</span>
+            </td>
+            <td class="left lot-cell" data-label="ロット一覧">
+              <ul class="lot-list">
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">C-6</span>
+                    <span class="lot-date">11/30</span>
+                    <span class="lot-qty red">数量959</span>
+                    <span class="lot-ng red">不良25</span>
+                    <span class="lot-rate red">(2.61%)</span>
+                    
+                      <span class="lot-breakdown red">：外観キズ3、圧痕4、メッキ1、落下2、その他15</span>
+                    
+                  </li>
+                
+              </ul>
+            </td>
+          </tr>
+          
+          
+          <tr class="ai-row">
+            <td colspan="7">
+              <div class="ai-comment empty"><span class="ai-title">AI分析</span><span class="ai-content">-</span></div>
+            </td>
+          </tr>
+          
+          <tr>
+            <td class="left key" data-label="品番"><span class="tag-badge"></span>06131-05511K</td>
+            <td class="left name" data-label="品名">ﾌﾟﾗﾝｼﾞｬ</td>
+            <td class="left customer" data-label="客先名">不二テクノス</td>
+            <td class="num" data-label="数量合計">6,246</td>
+            <td class="num" data-label="総不具合数合計">133</td>
+            <td class="num" data-label="不良率合計">
+              
+              <span class="rate-text red">2.13%</span>
+            </td>
+            <td class="left lot-cell" data-label="ロット一覧">
+              <ul class="lot-list">
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">E-3</span>
+                    <span class="lot-date">12/11</span>
+                    <span class="lot-qty red">数量1,581</span>
+                    <span class="lot-ng red">不良74</span>
+                    <span class="lot-rate red">(4.68%)</span>
+                    
+                      <span class="lot-breakdown red">：毟れ73、段差1</span>
+                    
+                  </li>
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">E-3</span>
+                    <span class="lot-date">12/10</span>
+                    <span class="lot-qty red">数量1,553</span>
+                    <span class="lot-ng red">不良35</span>
+                    <span class="lot-rate red">(2.25%)</span>
+                    
+                      <span class="lot-breakdown red">：毟れ34、段差1</span>
+                    
+                  </li>
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">E-3</span>
+                    <span class="lot-date">12/13</span>
+                    <span class="lot-qty red">数量1,483</span>
+                    <span class="lot-ng red">不良19</span>
+                    <span class="lot-rate red">(1.28%)</span>
+                    
+                      <span class="lot-breakdown red">：毟れ19</span>
+                    
+                  </li>
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">E-3</span>
+                    <span class="lot-date">12/14</span>
+                    <span class="lot-qty red">数量1,629</span>
+                    <span class="lot-ng red">不良5</span>
+                    <span class="lot-rate red">(0.31%)</span>
+                    
+                      <span class="lot-breakdown red">：毟れ5</span>
+                    
+                  </li>
+                
+              </ul>
+            </td>
+          </tr>
+          
+          
+          <tr class="ai-row">
+            <td colspan="7">
+              <div class="ai-comment empty"><span class="ai-title">AI分析</span><span class="ai-content">-</span></div>
+            </td>
+          </tr>
+          
+          <tr>
+            <td class="left key" data-label="品番"><span class="tag-badge"></span>158-830</td>
+            <td class="left name" data-label="品名">ﾛｰﾀﾘｰｼﾞｮｲﾝﾄ</td>
+            <td class="left customer" data-label="客先名">明治機械製作所</td>
+            <td class="num" data-label="数量合計">58</td>
+            <td class="num" data-label="総不具合数合計">1</td>
+            <td class="num" data-label="不良率合計">
+              
+              <span class="rate-text red">1.72%</span>
+            </td>
+            <td class="left lot-cell" data-label="ロット一覧">
+              <ul class="lot-list">
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">B-4</span>
+                    <span class="lot-date">12/16</span>
+                    <span class="lot-qty red">数量58</span>
+                    <span class="lot-ng red">不良1</span>
+                    <span class="lot-rate red">(1.72%)</span>
+                    
+                      <span class="lot-breakdown red">：圧痕1</span>
+                    
+                  </li>
+                
+              </ul>
+            </td>
+          </tr>
+          
+          
+          <tr class="ai-row">
+            <td colspan="7">
+              <div class="ai-comment empty"><span class="ai-title">AI分析</span><span class="ai-content">-</span></div>
+            </td>
+          </tr>
+          
+          <tr>
+            <td class="left key" data-label="品番"><span class="tag-badge"></span>MHK1017Z-0</td>
+            <td class="left name" data-label="品名">17番ﾚﾝｽﾞ枠</td>
+            <td class="left customer" data-label="客先名">京セラ</td>
+            <td class="num" data-label="数量合計">929</td>
+            <td class="num" data-label="総不具合数合計">5</td>
+            <td class="num" data-label="不良率合計">
+              
+              <span class="rate-text red">0.54%</span>
+            </td>
+            <td class="left lot-cell" data-label="ロット一覧">
+              <ul class="lot-list">
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">C-6</span>
+                    <span class="lot-date">12/02</span>
+                    <span class="lot-qty red">数量929</span>
+                    <span class="lot-ng red">不良5</span>
+                    <span class="lot-rate red">(0.54%)</span>
+                    
+                      <span class="lot-breakdown red">：外観キズ1、メッキ4</span>
+                    
+                  </li>
+                
+              </ul>
+            </td>
+          </tr>
+          
+          
+          <tr class="ai-row">
+            <td colspan="7">
+              <div class="ai-comment empty"><span class="ai-title">AI分析</span><span class="ai-content">-</span></div>
+            </td>
+          </tr>
+          
+          <tr>
+            <td class="left key" data-label="品番"><span class="tag-badge"></span>MC2-1449-01</td>
+            <td class="left name" data-label="品名">D軸受(駆)シャフトφ5</td>
+            <td class="left customer" data-label="客先名">ネオテック</td>
+            <td class="num" data-label="数量合計">4,974</td>
+            <td class="num" data-label="総不具合数合計">26</td>
+            <td class="num" data-label="不良率合計">
+              
+              <span class="rate-text red">0.52%</span>
+            </td>
+            <td class="left lot-cell" data-label="ロット一覧">
+              <ul class="lot-list">
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">AN</span>
+                    <span class="lot-date">11/13</span>
+                    <span class="lot-qty red">数量2,484</span>
+                    <span class="lot-ng red">不良16</span>
+                    <span class="lot-rate red">(0.64%)</span>
+                    
+                      <span class="lot-breakdown red">：圧痕4、ボケ6、汚れ6</span>
+                    
+                  </li>
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">AN</span>
+                    <span class="lot-date">11/09</span>
+                    <span class="lot-qty red">数量2,490</span>
+                    <span class="lot-ng red">不良10</span>
+                    <span class="lot-rate red">(0.40%)</span>
+                    
+                      <span class="lot-breakdown red">：圧痕4、ボケ5、挽目1</span>
+                    
+                  </li>
+                
+              </ul>
+            </td>
+          </tr>
+          
+          
+          <tr class="ai-row">
+            <td colspan="7">
+              <div class="ai-comment empty"><span class="ai-title">AI分析</span><span class="ai-content">-</span></div>
+            </td>
+          </tr>
+          
+          <tr>
+            <td class="left key" data-label="品番"><span class="tag-badge"></span>50041-01112</td>
+            <td class="left name" data-label="品名">ﾈｼﾞｼﾞｸｳｹ</td>
+            <td class="left customer" data-label="客先名">不二工機</td>
+            <td class="num" data-label="数量合計">1,454</td>
+            <td class="num" data-label="総不具合数合計">5</td>
+            <td class="num" data-label="不良率合計">
+              
+              <span class="rate-text red">0.34%</span>
+            </td>
+            <td class="left lot-cell" data-label="ロット一覧">
+              <ul class="lot-list">
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">C-10</span>
+                    <span class="lot-date">12/11</span>
+                    <span class="lot-qty red">数量1,454</span>
+                    <span class="lot-ng red">不良5</span>
+                    <span class="lot-rate red">(0.34%)</span>
+                    
+                      <span class="lot-breakdown red">：外観キズ5</span>
+                    
+                  </li>
+                
+              </ul>
+            </td>
+          </tr>
+          
+          
+          <tr class="ai-row">
+            <td colspan="7">
+              <div class="ai-comment empty"><span class="ai-title">AI分析</span><span class="ai-content">-</span></div>
+            </td>
+          </tr>
+          
+          <tr>
+            <td class="left key" data-label="品番"><span class="tag-badge"></span>3D025-M006A</td>
+            <td class="left name" data-label="品名">ｷﾞﾔB</td>
+            <td class="left customer" data-label="客先名">村上開明堂</td>
+            <td class="num" data-label="数量合計">1,512</td>
+            <td class="num" data-label="総不具合数合計">4</td>
+            <td class="num" data-label="不良率合計">
+              
+              <span class="rate-text red">0.26%</span>
+            </td>
+            <td class="left lot-cell" data-label="ロット一覧">
+              <ul class="lot-list">
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">C-7</span>
+                    <span class="lot-date">12/14</span>
+                    <span class="lot-qty red">数量1,512</span>
+                    <span class="lot-ng red">不良4</span>
+                    <span class="lot-rate red">(0.26%)</span>
+                    
+                      <span class="lot-breakdown red">：外観キズ3、毟れ1</span>
+                    
+                  </li>
+                
+              </ul>
+            </td>
+          </tr>
+          
+          
+          <tr class="ai-row">
+            <td colspan="7">
+              <div class="ai-comment empty"><span class="ai-title">AI分析</span><span class="ai-content">-</span></div>
+            </td>
+          </tr>
+          
+          <tr>
+            <td class="left key" data-label="品番"><span class="tag-badge"></span>50041-01410</td>
+            <td class="left name" data-label="品名">ﾈｼﾞｼﾞｸｳｹ</td>
+            <td class="left customer" data-label="客先名">不二工機</td>
+            <td class="num" data-label="数量合計">3,368</td>
+            <td class="num" data-label="総不具合数合計">8</td>
+            <td class="num" data-label="不良率合計">
+              
+              <span class="rate-text red">0.24%</span>
+            </td>
+            <td class="left lot-cell" data-label="ロット一覧">
+              <ul class="lot-list">
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">F-5</span>
+                    <span class="lot-date">12/11</span>
+                    <span class="lot-qty red">数量1,709</span>
+                    <span class="lot-ng red">不良5</span>
+                    <span class="lot-rate red">(0.29%)</span>
+                    
+                      <span class="lot-breakdown red">：外観キズ4、落下1</span>
+                    
+                  </li>
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">F-5</span>
+                    <span class="lot-date">12/10</span>
+                    <span class="lot-qty red">数量1,659</span>
+                    <span class="lot-ng red">不良3</span>
+                    <span class="lot-rate red">(0.18%)</span>
+                    
+                      <span class="lot-breakdown red">：外観キズ2、圧痕1</span>
+                    
+                  </li>
+                
+              </ul>
+            </td>
+          </tr>
+          
+          
+          <tr class="ai-row">
+            <td colspan="7">
+              <div class="ai-comment empty"><span class="ai-title">AI分析</span><span class="ai-content">-</span></div>
+            </td>
+          </tr>
+          
+          <tr>
+            <td class="left key" data-label="品番"><span class="tag-badge"></span>17R-105</td>
+            <td class="left name" data-label="品名">ﾒﾀﾙﾊｳｽ(1)</td>
+            <td class="left customer" data-label="客先名">シチズンマイクロ</td>
+            <td class="num" data-label="数量合計">571</td>
+            <td class="num" data-label="総不具合数合計">1</td>
+            <td class="num" data-label="不良率合計">
+              
+              <span class="rate-text red">0.18%</span>
+            </td>
+            <td class="left lot-cell" data-label="ロット一覧">
+              <ul class="lot-list">
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">D-11</span>
+                    <span class="lot-date">12/15</span>
+                    <span class="lot-qty red">数量571</span>
+                    <span class="lot-ng red">不良1</span>
+                    <span class="lot-rate red">(0.18%)</span>
+                    
+                      <span class="lot-breakdown red">：ゴミ1</span>
+                    
+                  </li>
+                
+              </ul>
+            </td>
+          </tr>
+          
+          
+          <tr class="ai-row">
+            <td colspan="7">
+              <div class="ai-comment empty"><span class="ai-title">AI分析</span><span class="ai-content">-</span></div>
+            </td>
+          </tr>
+          
+          <tr>
+            <td class="left key" data-label="品番"><span class="tag-badge"></span>587-711-1</td>
+            <td class="left name" data-label="品名">ﾊﾟﾀｰﾝ調節弁ｶﾞｲﾄﾞ</td>
+            <td class="left customer" data-label="客先名">明治機械製作所</td>
+            <td class="num" data-label="数量合計">1,274</td>
+            <td class="num" data-label="総不具合数合計">2</td>
+            <td class="num" data-label="不良率合計">
+              
+              <span class="rate-text red">0.16%</span>
+            </td>
+            <td class="left lot-cell" data-label="ロット一覧">
+              <ul class="lot-list">
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">C-12</span>
+                    <span class="lot-date">12/14</span>
+                    <span class="lot-qty red">数量1,274</span>
+                    <span class="lot-ng red">不良2</span>
+                    <span class="lot-rate red">(0.16%)</span>
+                    
+                      <span class="lot-breakdown red">：外観キズ1、汚れ1</span>
+                    
+                  </li>
+                
+              </ul>
+            </td>
+          </tr>
+          
+          
+          <tr class="ai-row">
+            <td colspan="7">
+              <div class="ai-comment empty"><span class="ai-title">AI分析</span><span class="ai-content">-</span></div>
+            </td>
+          </tr>
+          
+          <tr>
+            <td class="left key" data-label="品番"><span class="tag-badge"></span>P4M01283-02-02</td>
+            <td class="left name" data-label="品名">S89 Yoke Shaft</td>
+            <td class="left customer" data-label="客先名">三菱製鋼</td>
+            <td class="num" data-label="数量合計">3,948</td>
+            <td class="num" data-label="総不具合数合計">4</td>
+            <td class="num" data-label="不良率合計">
+              
+              <span class="rate-text red">0.10%</span>
+            </td>
+            <td class="left lot-cell" data-label="ロット一覧">
+              <ul class="lot-list">
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">F-2</span>
+                    <span class="lot-date">12/12</span>
+                    <span class="lot-qty red">数量1,023</span>
+                    <span class="lot-ng red">不良2</span>
+                    <span class="lot-rate red">(0.20%)</span>
+                    
+                      <span class="lot-breakdown red">：外観キズ1、汚れ1</span>
+                    
+                  </li>
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">F-2</span>
+                    <span class="lot-date">12/13</span>
+                    <span class="lot-qty red">数量1,419</span>
+                    <span class="lot-ng red">不良1</span>
+                    <span class="lot-rate red">(0.07%)</span>
+                    
+                      <span class="lot-breakdown red">：外観キズ1</span>
+                    
+                  </li>
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">F-2</span>
+                    <span class="lot-date">12/14</span>
+                    <span class="lot-qty red">数量1,506</span>
+                    <span class="lot-ng red">不良1</span>
+                    <span class="lot-rate red">(0.07%)</span>
+                    
+                      <span class="lot-breakdown red">：落下1</span>
+                    
+                  </li>
+                
+              </ul>
+            </td>
+          </tr>
+          
+          
+          <tr class="ai-row">
+            <td colspan="7">
+              <div class="ai-comment empty"><span class="ai-title">AI分析</span><span class="ai-content">-</span></div>
+            </td>
+          </tr>
+          
+          <tr>
+            <td class="left key" data-label="品番"><span class="tag-badge"></span>00575532-05</td>
+            <td class="left name" data-label="品名">カラー 8×8.14</td>
+            <td class="left customer" data-label="客先名">東京鋲兼</td>
+            <td class="num" data-label="数量合計">5,840</td>
+            <td class="num" data-label="総不具合数合計">5</td>
+            <td class="num" data-label="不良率合計">
+              
+              <span class="rate-text red">0.09%</span>
+            </td>
+            <td class="left lot-cell" data-label="ロット一覧">
+              <ul class="lot-list">
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">E-4</span>
+                    <span class="lot-date">12/15</span>
+                    <span class="lot-qty red">数量2,881</span>
+                    <span class="lot-ng red">不良4</span>
+                    <span class="lot-rate red">(0.14%)</span>
+                    
+                      <span class="lot-breakdown red">：材料キズ4</span>
+                    
+                  </li>
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">E-4</span>
+                    <span class="lot-date">12/16</span>
+                    <span class="lot-qty red">数量2,959</span>
+                    <span class="lot-ng red">不良1</span>
+                    <span class="lot-rate red">(0.03%)</span>
+                    
+                      <span class="lot-breakdown red">：材料キズ1</span>
+                    
+                  </li>
+                
+              </ul>
+            </td>
+          </tr>
+          
+          
+          <tr class="ai-row">
+            <td colspan="7">
+              <div class="ai-comment empty"><span class="ai-title">AI分析</span><span class="ai-content">-</span></div>
+            </td>
+          </tr>
+          
+          <tr>
+            <td class="left key" data-label="品番"><span class="tag-badge"></span>MP007802-2</td>
+            <td class="left name" data-label="品名">JSU041M01-1</td>
+            <td class="left customer" data-label="客先名">日本ピスコ</td>
+            <td class="num" data-label="数量合計">1,243</td>
+            <td class="num" data-label="総不具合数合計">1</td>
+            <td class="num" data-label="不良率合計">
+              
+              <span class="rate-text red">0.08%</span>
+            </td>
+            <td class="left lot-cell" data-label="ロット一覧">
+              <ul class="lot-list">
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">E-7</span>
+                    <span class="lot-date">12/13</span>
+                    <span class="lot-qty red">数量1,243</span>
+                    <span class="lot-ng red">不良1</span>
+                    <span class="lot-rate red">(0.08%)</span>
+                    
+                      <span class="lot-breakdown red">：外観キズ1</span>
+                    
+                  </li>
+                
+              </ul>
+            </td>
+          </tr>
+          
+          
+          <tr class="ai-row">
+            <td colspan="7">
+              <div class="ai-comment empty"><span class="ai-title">AI分析</span><span class="ai-content">-</span></div>
+            </td>
+          </tr>
+          
+          <tr>
+            <td class="left key" data-label="品番"><span class="tag-badge"></span>3D025-G4960</td>
+            <td class="left name" data-label="品名">ｷﾞﾔB</td>
+            <td class="left customer" data-label="客先名">村上開明堂</td>
+            <td class="num" data-label="数量合計">11,806</td>
+            <td class="num" data-label="総不具合数合計">8</td>
+            <td class="num" data-label="不良率合計">
+              
+              <span class="rate-text red">0.07%</span>
+            </td>
+            <td class="left lot-cell" data-label="ロット一覧">
+              <ul class="lot-list">
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">F-4</span>
+                    <span class="lot-date">12/09</span>
+                    <span class="lot-qty red">数量1,558</span>
+                    <span class="lot-ng red">不良2</span>
+                    <span class="lot-rate red">(0.13%)</span>
+                    
+                      <span class="lot-breakdown red">：毟れ1、その他1</span>
+                    
+                  </li>
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">F-4</span>
+                    <span class="lot-date">12/12</span>
+                    <span class="lot-qty red">数量1,599</span>
+                    <span class="lot-ng red">不良1</span>
+                    <span class="lot-rate red">(0.06%)</span>
+                    
+                      <span class="lot-breakdown red">：外観キズ1</span>
+                    
+                  </li>
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">F-4</span>
+                    <span class="lot-date">12/08</span>
+                    <span class="lot-qty red">数量1,666</span>
+                    <span class="lot-ng red">不良1</span>
+                    <span class="lot-rate red">(0.06%)</span>
+                    
+                      <span class="lot-breakdown red">：外観キズ1</span>
+                    
+                  </li>
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">F-4</span>
+                    <span class="lot-date">12/07</span>
+                    <span class="lot-qty red">数量1,683</span>
+                    <span class="lot-ng red">不良1</span>
+                    <span class="lot-rate red">(0.06%)</span>
+                    
+                      <span class="lot-breakdown red">：落下1</span>
+                    
+                  </li>
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">F-4</span>
+                    <span class="lot-date">12/10</span>
+                    <span class="lot-qty red">数量1,709</span>
+                    <span class="lot-ng red">不良1</span>
+                    <span class="lot-rate red">(0.06%)</span>
+                    
+                      <span class="lot-breakdown red">：毟れ1</span>
+                    
+                  </li>
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">F-4</span>
+                    <span class="lot-date">12/14</span>
+                    <span class="lot-qty red">数量1,750</span>
+                    <span class="lot-ng red">不良1</span>
+                    <span class="lot-rate red">(0.06%)</span>
+                    
+                      <span class="lot-breakdown red">：外観キズ1</span>
+                    
+                  </li>
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">F-4</span>
+                    <span class="lot-date">12/13</span>
+                    <span class="lot-qty red">数量1,841</span>
+                    <span class="lot-ng red">不良1</span>
+                    <span class="lot-rate red">(0.05%)</span>
+                    
+                      <span class="lot-breakdown red">：外観キズ1</span>
+                    
+                  </li>
+                
+              </ul>
+            </td>
+          </tr>
+          
+          
+          <tr class="ai-row">
+            <td colspan="7">
+              <div class="ai-comment empty"><span class="ai-title">AI分析</span><span class="ai-content">-</span></div>
+            </td>
+          </tr>
+          
+          <tr>
+            <td class="left key" data-label="品番"><span class="tag-badge"></span>1J841R3-4</td>
+            <td class="left name" data-label="品名">F4 PIN</td>
+            <td class="left customer" data-label="客先名">福井鋲螺</td>
+            <td class="num" data-label="数量合計">1,718</td>
+            <td class="num" data-label="総不具合数合計">1</td>
+            <td class="num" data-label="不良率合計">
+              
+              <span class="rate-text red">0.06%</span>
+            </td>
+            <td class="left lot-cell" data-label="ロット一覧">
+              <ul class="lot-list">
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">D-9</span>
+                    <span class="lot-date">12/13</span>
+                    <span class="lot-qty red">数量1,718</span>
+                    <span class="lot-ng red">不良1</span>
+                    <span class="lot-rate red">(0.06%)</span>
+                    
+                      <span class="lot-breakdown red">：穴大1</span>
+                    
+                  </li>
+                
+              </ul>
+            </td>
+          </tr>
+          
+          
+          <tr class="ai-row">
+            <td colspan="7">
+              <div class="ai-comment empty"><span class="ai-title">AI分析</span><span class="ai-content">-</span></div>
+            </td>
+          </tr>
+          
+          <tr>
+            <td class="left key" data-label="品番"><span class="tag-badge"></span>MP007784</td>
+            <td class="left name" data-label="品名">JSU041M05</td>
+            <td class="left customer" data-label="客先名">日本ピスコ</td>
+            <td class="num" data-label="数量合計">2,308</td>
+            <td class="num" data-label="総不具合数合計">1</td>
+            <td class="num" data-label="不良率合計">
+              
+              <span class="rate-text red">0.04%</span>
+            </td>
+            <td class="left lot-cell" data-label="ロット一覧">
+              <ul class="lot-list">
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">E-1</span>
+                    <span class="lot-date">12/14</span>
+                    <span class="lot-qty red">数量2,308</span>
+                    <span class="lot-ng red">不良1</span>
+                    <span class="lot-rate red">(0.04%)</span>
+                    
+                      <span class="lot-breakdown red">：外観キズ1</span>
+                    
+                  </li>
+                
+              </ul>
+            </td>
+          </tr>
+          
+          
+          <tr class="ai-row">
+            <td colspan="7">
+              <div class="ai-comment empty"><span class="ai-title">AI分析</span><span class="ai-content">-</span></div>
+            </td>
+          </tr>
+          
+          <tr>
+            <td class="left key" data-label="品番"><span class="tag-badge"></span>C61551-4</td>
+            <td class="left name" data-label="品名">充電端子B</td>
+            <td class="left customer" data-label="客先名">タカシマ</td>
+            <td class="num" data-label="数量合計">5,503</td>
+            <td class="num" data-label="総不具合数合計">2</td>
+            <td class="num" data-label="不良率合計">
+              
+              <span class="rate-text red">0.04%</span>
+            </td>
+            <td class="left lot-cell" data-label="ロット一覧">
+              <ul class="lot-list">
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">E-5</span>
+                    <span class="lot-date">12/13</span>
+                    <span class="lot-qty red">数量2,267</span>
+                    <span class="lot-ng red">不良1</span>
+                    <span class="lot-rate red">(0.04%)</span>
+                    
+                      <span class="lot-breakdown red">：異物混入1</span>
+                    
+                  </li>
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">E-5</span>
+                    <span class="lot-date">12/14</span>
+                    <span class="lot-qty red">数量3,236</span>
+                    <span class="lot-ng red">不良1</span>
+                    <span class="lot-rate red">(0.03%)</span>
+                    
+                      <span class="lot-breakdown red">：落下1</span>
+                    
+                  </li>
+                
+              </ul>
+            </td>
+          </tr>
+          
+          
+          <tr class="ai-row">
+            <td colspan="7">
+              <div class="ai-comment empty"><span class="ai-title">AI分析</span><span class="ai-content">-</span></div>
+            </td>
+          </tr>
+          
+          <tr>
+            <td class="left key" data-label="品番"><span class="tag-badge"></span>99759-00022</td>
+            <td class="left name" data-label="品名">シャフトB</td>
+            <td class="left customer" data-label="客先名">三協</td>
+            <td class="num" data-label="数量合計">4,832</td>
+            <td class="num" data-label="総不具合数合計">1</td>
+            <td class="num" data-label="不良率合計">
+              
+              <span class="rate-text red">0.02%</span>
+            </td>
+            <td class="left lot-cell" data-label="ロット一覧">
+              <ul class="lot-list">
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">F-14</span>
+                    <span class="lot-date">12/07</span>
+                    <span class="lot-qty red">数量4,832</span>
+                    <span class="lot-ng red">不良1</span>
+                    <span class="lot-rate red">(0.02%)</span>
+                    
+                      <span class="lot-breakdown red">：短寸1</span>
+                    
+                  </li>
+                
+              </ul>
+            </td>
+          </tr>
+          
+          
+          <tr class="ai-row">
+            <td colspan="7">
+              <div class="ai-comment empty"><span class="ai-title">AI分析</span><span class="ai-content">-</span></div>
+            </td>
+          </tr>
+          
+        </tbody>
+      </table>
+      <div class="muted">サマリ表示ロット数: 43（不具合なしロット数: 20）</div>
+    </div>
+
+  </main>
+  <footer>Generated by defect_dashboard_generator.py</footer>
+</body>
+</html>
