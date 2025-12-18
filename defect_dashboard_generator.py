@@ -383,6 +383,14 @@ def extract_today_lots(appearance_df: pd.DataFrame, run_date: datetime) -> pd.Da
 
     if "生産ロットID" not in today_df.columns:
         raise KeyError("appearance table must include 生産ロットID")
+    
+    # 生産ロットIDが重複している場合、最初の1件のみを採用（数量は合算しない）
+    before_count = len(today_df)
+    today_df = today_df.drop_duplicates(subset=["生産ロットID"], keep="first")
+    after_count = len(today_df)
+    if before_count != after_count:
+        logging.info("removed %s duplicate lot IDs", before_count - after_count)
+    
     return today_df
 
 
@@ -444,21 +452,22 @@ def compute_today_summary(today_lots_df: pd.DataFrame, today_defects_df: pd.Data
         group_keys.append("指示日")
     defect_cols = detect_defect_columns(today_defects_df)
 
-    # 数量は外観側（あれば）→不具合側へフォールバック
+    # 数量は外観側（あれば）→不具合側へフォールバック（合算せず最初の値を採用）
     qty_col = "数量" if "数量" in today_lots_df.columns else ("数量" if "数量" in today_defects_df.columns else None)
     if qty_col:
         if set(group_keys).issubset(set(today_lots_df.columns)):
-            qty_by_hinban = today_lots_df.groupby(group_keys, as_index=False)[qty_col].sum()
+            qty_by_hinban = today_lots_df.groupby(group_keys, as_index=False)[qty_col].first()
         else:
-            qty_by_hinban = today_defects_df.groupby(group_keys, as_index=False)[qty_col].sum()
+            qty_by_hinban = today_defects_df.groupby(group_keys, as_index=False)[qty_col].first()
     else:
         qty_by_hinban = today_defects_df[group_keys].drop_duplicates()
         qty_by_hinban["数量"] = 0
 
+    # 総不具合数も合算せず最初の値を採用
     if "総不具合数" in today_defects_df.columns:
-        total_def_by_hinban = today_defects_df.groupby(group_keys, as_index=False)["総不具合数"].sum()
+        total_def_by_hinban = today_defects_df.groupby(group_keys, as_index=False)["総不具合数"].first()
     else:
-        total_def_by_hinban = today_defects_df.groupby(group_keys, as_index=False)[defect_cols].sum()
+        total_def_by_hinban = today_defects_df.groupby(group_keys, as_index=False)[defect_cols].first()
         total_def_by_hinban["総不具合数"] = total_def_by_hinban[defect_cols].sum(axis=1)
         total_def_by_hinban = total_def_by_hinban[group_keys + ["総不具合数"]]
 
@@ -469,9 +478,9 @@ def compute_today_summary(today_lots_df: pd.DataFrame, today_defects_df: pd.Data
     )
     summary = summary.sort_values("不良率", ascending=False).reset_index(drop=True)
 
-    # 区分別集計（見やすさ重視で1列にまとめる）
+    # 区分別集計（見やすさ重視で1列にまとめる）- 合算せず最初の値を採用
     if defect_cols:
-        defects_breakdown = today_defects_df.groupby(group_keys, as_index=False)[defect_cols].sum()
+        defects_breakdown = today_defects_df.groupby(group_keys, as_index=False)[defect_cols].first()
         defects_breakdown["不具合内訳"] = defects_breakdown.apply(
             lambda r: _summarize_defect_breakdown_row(r, defect_cols),
             axis=1,
@@ -836,15 +845,19 @@ INLINE_TEMPLATE = r"""
       letter-spacing: 0.5px;
       border-bottom: 2px solid #e2e8f0;
     }
-    tbody tr:not(.ai-row) { 
-      background: #ffffff;
+    tbody tr:not(.ai-row) {
+      background: linear-gradient(to bottom, #f0f7ff 0%, #ffffff 100%);
       transition: background 0.15s ease;
     }
-    tbody tr:not(.ai-row):hover { 
-      background: #f8fafc;
+    tbody tr:not(.ai-row):hover {
+      background: linear-gradient(to bottom, #e0efff 0%, #f8fafc 100%);
     }
-    tbody tr:nth-child(even):not(.ai-row) { background: #fafbfc; }
-    tbody tr:nth-child(even):not(.ai-row):hover { background: #f1f5f9; }
+    tbody tr:nth-child(even):not(.ai-row) { 
+      background: linear-gradient(to bottom, #e8f4fd 0%, #f8fbff 100%); 
+    }
+    tbody tr:nth-child(even):not(.ai-row):hover { 
+      background: linear-gradient(to bottom, #d8ebfc 0%, #f1f5f9 100%); 
+    }
     tbody tr:not(.ai-row) td.lot-cell { background: transparent; }
     td.left { text-align: left; }
     td.key, td.name, td.customer, td.num { color: #1e293b; font-weight: 600; white-space: nowrap; font-size: 14px; }
@@ -935,35 +948,39 @@ INLINE_TEMPLATE = r"""
     table.summary td:nth-child(6) { text-align: right; }
     
     /* ========== AIコメント ========== */
-    .ai-row td { background: transparent; text-align: left; padding: 4px 10px 12px; }
+    .ai-row td { background: transparent; text-align: left; padding: 2px 10px 4px; }
     .ai-comment {
       background: linear-gradient(135deg, #fefefe 0%, #f8fafc 100%);
       border-left: 4px solid #3b82f6;
-      padding: 12px 16px;
+      padding: 6px 12px;
       white-space: pre-line;
       font-size: 13px;
-      line-height: 1.7;
+      line-height: 1.6;
       text-align: left;
-      border-radius: 0 10px 10px 0;
+      border-radius: 0 8px 8px 0;
       color: #334155;
       box-shadow: 0 1px 4px rgba(0,0,0,0.04);
     }
-    .ai-comment ol, .ai-comment ul { margin: 6px 0 0 20px; padding: 0; }
-    .ai-comment li { margin: 3px 0; }
-    .ai-comment p { margin: 0 0 6px; }
+    .ai-comment ol, .ai-comment ul { margin: 4px 0 0 20px; padding: 0; }
+    .ai-comment li { margin: 2px 0; }
+    .ai-comment p { margin: 0 0 4px; }
     .ai-comment.empty {
       background: #fafafa;
       border-left-color: #d1d5db;
       color: #9ca3af;
     }
     .ai-title { 
-      font-size: 11px; 
+      display: block;
+      font-size: 12px; 
       font-weight: 700; 
-      margin: 0 0 6px; 
       color: #3b82f6;
-      letter-spacing: 0.5px;
-      text-transform: uppercase;
+      margin-bottom: 4px;
     }
+    .ai-content { 
+      display: block;
+      padding-left: 8px;
+    }
+    .ai-content br { display: block; margin-bottom: 2px; }
     .ai-meta { font-size: 10px; color: #9ca3af; margin-left: 8px; font-weight: 500; }
     
     /* ========== その他 ========== */
@@ -1105,14 +1122,7 @@ INLINE_TEMPLATE = r"""
           {% set has_ai = ai_comments.get(hinban_key) %}
           <tr class="ai-row">
             <td colspan="7">
-              <div class="ai-comment {{ 'empty' if not has_ai else '' }}">
-                <div class="ai-title">AI分析コメント{% if not has_ai %}<span class="ai-meta">未生成</span>{% endif %}</div>
-                {% if has_ai %}
-                  {{ has_ai }}
-                {% else %}
-                  {{ ai_status if ai_status else "AIコメントは生成されていません。（Gemini未設定／クォータ超過／対象データ不足など）" }}
-                {% endif %}
-              </div>
+              <div class="ai-comment {{ 'empty' if not has_ai else '' }}"><span class="ai-title">AI分析コメント{% if not has_ai %}（未生成）{% endif %}</span><span class="ai-content">{% if has_ai %}{{ has_ai }}{% else %}{{ ai_status if ai_status else "AIコメントは生成されていません。（Gemini未設定／クォータ超過／対象データ不足など）" }}{% endif %}</span></div>
             </td>
           </tr>
           {% endfor %}
@@ -1172,14 +1182,7 @@ INLINE_TEMPLATE = r"""
           {% set has_ai = ai_comments.get(hinban_key) %}
           <tr class="ai-row">
             <td colspan="7">
-              <div class="ai-comment {{ 'empty' if not has_ai else '' }}">
-                <div class="ai-title">AI分析コメント{% if not has_ai %}<span class="ai-meta">未生成</span>{% endif %}</div>
-                {% if has_ai %}
-                  {{ has_ai }}
-                {% else %}
-                  {{ ai_status if ai_status else "AIコメントは生成されていません。（Gemini未設定／クォータ超過／対象データ不足など）" }}
-                {% endif %}
-              </div>
+              <div class="ai-comment {{ 'empty' if not has_ai else '' }}"><span class="ai-title">AI分析コメント{% if not has_ai %}（未生成）{% endif %}</span><span class="ai-content">{% if has_ai %}{{ has_ai }}{% else %}{{ ai_status if ai_status else "AIコメントは生成されていません。（Gemini未設定／クォータ超過／対象データ不足など）" }}{% endif %}</span></div>
             </td>
           </tr>
           {% endfor %}
