@@ -816,12 +816,16 @@ INLINE_TEMPLATE = r"""
       border: 1px solid #bbf7d0;
       color: #16a34a;
     }
-    .section-sub { 
-      font-size: 11px; 
-      font-weight: 500; 
-      color: inherit; 
-      opacity: 0.7; 
+    .section-sub {
+      font-size: 11px;
+      font-weight: 500;
+      color: inherit;
+      opacity: 0.7;
       margin-left: auto;
+    }
+    .section-note {
+      color: #9ca3af;
+      font-weight: 400;
     }
     
     /* ========== テーブル ========== */
@@ -1102,7 +1106,7 @@ INLINE_TEMPLATE = r"""
       <div class="section-header normal">
         <span class="icon">📋</span>
         <span>{{ run_date_short }}サマリー</span>
-        <span class="section-sub">検査結果一覧</span>
+        <span class="section-sub">不具合ロット検査結果一覧<span class="section-note">（不具合なしロットは非表示）</span></span>
       </div>
       <table class="summary">
         <thead>
@@ -1156,7 +1160,7 @@ INLINE_TEMPLATE = r"""
           {% endfor %}
         </tbody>
       </table>
-      <div class="muted">サマリ表示ロット数: {{ summary_lot_count }}（不具合なしロット数: {{ no_defect_lot_count }}）</div>
+      <div class="muted">ワースト製品: {{ worst_lot_count }}ロット（不具合なし含む） / サマリー: {{ normal_lot_count }}ロット（不具合ありのみ）</div>
     </div>
 
   </main>
@@ -1205,22 +1209,25 @@ def generate_dashboard(run_date: datetime, cfg: Config) -> Path:
     target_hinbans = sorted(today_summary["品番"].astype(str).unique().tolist()) if "品番" in today_summary.columns else []
     lot_history = compute_lot_history(defects_3y, target_hinbans)
 
-    # 不良数が0のロットを除外
-    total_lot_count_before_filter = len(today_summary) if not today_summary.empty else 0
-    if "総不具合数" in today_summary.columns:
-        today_summary_filtered = today_summary[today_summary["総不具合数"] > 0].copy()
-    else:
-        today_summary_filtered = today_summary.copy()
-    no_defect_lot_count = total_lot_count_before_filter - len(today_summary_filtered)
-
+    # ワースト品番と通常品番を分離
     worst_set = set(FIXED_WORST_41ST_HINBANS)
-    if "品番" in today_summary_filtered.columns:
-        mask_worst_today = today_summary_filtered["品番"].astype(str).isin(worst_set)
-        worst_today_summary = today_summary_filtered.loc[mask_worst_today].copy()
-        normal_today_summary = today_summary_filtered.loc[~mask_worst_today].copy()
+    if "品番" in today_summary.columns:
+        mask_worst = today_summary["品番"].astype(str).isin(worst_set)
+        # ワースト品番: 不具合なしロットも含めて全て表示
+        worst_today_summary = today_summary.loc[mask_worst].copy()
+        # 通常品番: 不具合ありのみ表示
+        normal_today_summary_all = today_summary.loc[~mask_worst].copy()
+        if "総不具合数" in normal_today_summary_all.columns:
+            normal_today_summary = normal_today_summary_all[normal_today_summary_all["総不具合数"] > 0].copy()
+        else:
+            normal_today_summary = normal_today_summary_all.copy()
     else:
         worst_today_summary = pd.DataFrame()
-        normal_today_summary = today_summary_filtered
+        normal_today_summary = today_summary.copy()
+
+    # ロット数の集計
+    worst_lot_count = len(worst_today_summary) if not worst_today_summary.empty else 0
+    normal_lot_count = len(normal_today_summary) if not normal_today_summary.empty else 0
 
     # GeminiでAIコメント生成（固定ワーストは専用プロンプト、その他は一般プロンプト）
     ai_comments: Dict[str, str] = {}
@@ -1349,9 +1356,6 @@ def generate_dashboard(run_date: datetime, cfg: Config) -> Path:
     worst_today_grouped = group_by_hinban(worst_today_summary)
     normal_today_grouped = group_by_hinban(normal_today_summary)
 
-    # サマリに表示されているロット数を計算（不良数0を除外した後の品番×号機の組み合わせ数）
-    summary_lot_count = len(today_summary_filtered) if not today_summary_filtered.empty else 0
-
     template = load_template(cfg)
     html = template.render(
         run_date=run_date.strftime("%Y-%m-%d"),
@@ -1362,8 +1366,8 @@ def generate_dashboard(run_date: datetime, cfg: Config) -> Path:
         worst_today_summary=worst_today_grouped,
         today_lot_count=int(today_lots_df["生産ロットID"].nunique()),
         today_defect_count=int(len(today_defects_df)),
-        summary_lot_count=summary_lot_count,
-        no_defect_lot_count=no_defect_lot_count,
+        worst_lot_count=worst_lot_count,
+        normal_lot_count=normal_lot_count,
         breakdown_columns=[],
         breakdown_rows=[],
         ai_comments=ai_comments,

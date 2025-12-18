@@ -102,12 +102,16 @@
       border: 1px solid #bbf7d0;
       color: #16a34a;
     }
-    .section-sub { 
-      font-size: 11px; 
-      font-weight: 500; 
-      color: inherit; 
-      opacity: 0.7; 
+    .section-sub {
+      font-size: 11px;
+      font-weight: 500;
+      color: inherit;
+      opacity: 0.7;
       margin-left: auto;
+    }
+    .section-note {
+      color: #9ca3af;
+      font-weight: 400;
     }
     
     /* ========== テーブル ========== */
@@ -348,11 +352,11 @@
             <td class="left key" data-label="品番"><span class="tag-badge"></span>06131-01710R</td>
             <td class="left name" data-label="品名">ﾌﾟﾗﾝｼﾞｬ</td>
             <td class="left customer" data-label="客先名">不二テクノス</td>
-            <td class="num" data-label="数量合計">2,186</td>
-            <td class="num" data-label="総不具合数合計">71</td>
+            <td class="num" data-label="数量合計">3,168</td>
+            <td class="num" data-label="総不具合数合計">102</td>
             <td class="num" data-label="不良率合計">
               
-              <span class="rate-text red">3.25%</span>
+              <span class="rate-text red">3.22%</span>
             </td>
             <td class="left lot-cell" data-label="ロット一覧">
               <ul class="lot-list">
@@ -366,6 +370,18 @@
                     <span class="lot-rate red">(4.73%)</span>
                     
                       <span class="lot-breakdown red">：外観キズ49、落下2</span>
+                    
+                  </li>
+                
+                  
+                  <li class="">
+                    <span class="lot-tag">E-10</span>
+                    <span class="lot-date">12/01</span>
+                    <span class="lot-qty red">数量982</span>
+                    <span class="lot-ng red">不良31</span>
+                    <span class="lot-rate red">(3.16%)</span>
+                    
+                      <span class="lot-breakdown red">：外観キズ3、落下1、その他27</span>
                     
                   </li>
                 
@@ -396,11 +412,11 @@
             <td class="left key" data-label="品番"><span class="tag-badge"></span>06081-03911K</td>
             <td class="left name" data-label="品名">ｷｭｳｲﾝｼ</td>
             <td class="left customer" data-label="客先名">不二テクノス</td>
-            <td class="num" data-label="数量合計">3,275</td>
+            <td class="num" data-label="数量合計">5,196</td>
             <td class="num" data-label="総不具合数合計">9</td>
             <td class="num" data-label="不良率合計">
               
-              <span class="rate-text red">0.27%</span>
+              <span class="rate-text red">0.17%</span>
             </td>
             <td class="left lot-cell" data-label="ロット一覧">
               <ul class="lot-list">
@@ -453,6 +469,26 @@
                     
                   </li>
                 
+                  
+                  <li class="no-defect">
+                    <span class="lot-tag">D-1</span>
+                    <span class="lot-date">12/16</span>
+                    <span class="lot-qty ">数量999</span>
+                    <span class="lot-ng ">不良0</span>
+                    <span class="lot-rate ">(0.00%)</span>
+                    
+                  </li>
+                
+                  
+                  <li class="no-defect">
+                    <span class="lot-tag">D-3</span>
+                    <span class="lot-date">12/16</span>
+                    <span class="lot-qty ">数量922</span>
+                    <span class="lot-ng ">不良0</span>
+                    <span class="lot-rate ">(0.00%)</span>
+                    
+                  </li>
+                
               </ul>
             </td>
           </tr>
@@ -472,7 +508,7 @@
       <div class="section-header normal">
         <span class="icon">📋</span>
         <span>12/17サマリー</span>
-        <span class="section-sub">検査結果一覧</span>
+        <span class="section-sub">不具合ロット検査結果一覧<span class="section-note">（不具合なしロットは非表示）</span></span>
       </div>
       <table class="summary">
         <thead>
@@ -1414,7 +1450,7 @@
           
         </tbody>
       </table>
-      <div class="muted">サマリ表示ロット数: 43（不具合なしロット数: 20）</div>
+      <div class="muted">ワースト製品: 9ロット（不具合なし含む） / サマリー: 37ロット（不具合ありのみ）</div>
     </div>
 
   </main>
