@@ -1,8 +1,8 @@
 """
-本日検査品 不具合分析ダッシュボード自動生成スクリプト
+昨日検査品 不具合分析ダッシュボード自動生成スクリプト
 
 要件定義書_defect_dashboard_generator.md に基づく実装。
-2つのAccess DB（外観検査集計 / 不具合情報）から本日対象ロットの不具合を集計し、
+2つのAccess DB（外観検査集計 / 不具合情報）から昨日対象ロットの不具合を集計し、
 過去3年の推移と合わせてSaaS風HTMLダッシュボードを生成する。
 """
 
@@ -160,7 +160,7 @@ def build_worst_part_prompt_for_term(
     worst_label = f"{term_info.term_number}期ワースト品番"
     return f"""
 以下は、当社（精密加工部品メーカー）における「{worst_label}」の
-過去3年データと本日の不具合データです。（対象期: {term_label}）
+過去3年データと昨日の不具合データです。（対象期: {term_label}）
 
 目的：製造がすぐ行動できる **短く要点だけのコメント** を作ること。
 必ず **3〜6行以内** にまとめること。長文は禁止。
@@ -178,9 +178,9 @@ def build_worst_part_prompt_for_term(
 【不具合区分サマリ】
 {defect_kind_summary}
 
-【本日の不具合】
+【昨日の不具合】
 検査数={today_qty}, 不良数={today_ng}, 不良率={today_rate:.2f}%
-本日の不具合: {today_defect_kinds}
+昨日の不具合: {today_defect_kinds}
 ---
 
 以下の形式で簡潔にまとめてください：
@@ -241,7 +241,7 @@ def build_general_part_prompt(
 ) -> str:
     return f"""
 以下は、当社（精密加工部品メーカー）における対象品番の
-過去3年データと本日の不具合データです。
+過去3年データと昨日の不具合データです。
 
 目的：製造がすぐ行動できる **短く要点だけのコメント** を作ること。
 必ず **3〜6行以内** にまとめること。長文は禁止。
@@ -258,9 +258,9 @@ def build_general_part_prompt(
 【不具合区分サマリ】
 {defect_kind_summary}
 
-【本日の不具合】
+【昨日の不具合】
 検査数={today_qty}, 不良数={today_ng}, 不良率={today_rate:.2f}%
-本日の不具合: {today_defect_kinds}
+昨日の不具合: {today_defect_kinds}
 ---
 
 以下の形式で簡潔にまとめてください：
@@ -367,7 +367,7 @@ def extract_today_lots(appearance_df: pd.DataFrame, run_date: datetime) -> pd.Da
     if date_col:
         today_mask = appearance_df[date_col].dt.date == run_date.date()
         today_df = appearance_df.loc[today_mask].copy()
-        logging.info("appearance rows for today: %s", len(today_df))
+        logging.info("appearance rows for yesterday: %s", len(today_df))
     else:
         today_df = appearance_df.copy()
         logging.warning("no date column in appearance table; using all rows")
@@ -391,7 +391,7 @@ def join_defects(today_lots_df: pd.DataFrame, defect_df: pd.DataFrame) -> pd.Dat
             on="生産ロットID",
             how="left",
         )
-    logging.info("defect rows for today lots: %s", len(joined))
+    logging.info("defect rows for yesterday lots: %s", len(joined))
     return joined
 
 
@@ -430,6 +430,9 @@ def compute_today_summary(today_lots_df: pd.DataFrame, today_defects_df: pd.Data
     group_keys: List[str] = [key_col]
     if "号機" in today_lots_df.columns or "号機" in today_defects_df.columns:
         group_keys.append("号機")
+    # 指示日（ロット日）をグループキーに追加
+    if "指示日" in today_lots_df.columns or "指示日" in today_defects_df.columns:
+        group_keys.append("指示日")
     defect_cols = detect_defect_columns(today_defects_df)
 
     # 数量は外観側（あれば）→不具合側へフォールバック
@@ -715,13 +718,13 @@ INLINE_TEMPLATE = r"""
     th { text-align: left; background:#f8fafc; position: sticky; top:0; font-weight: 700; color:#344054; }
     tbody tr:nth-child(even):not(.ai-row) { background:#fcfdff; }
     td.left { text-align: left; }
-    td.key, td.name, td.customer, td.num { color:#101828; font-weight:700; }
+    td.key, td.name, td.customer, td.num { color:#101828; font-weight:700; white-space: nowrap; }
     td.key { font-size:15px; letter-spacing:.2px; }
     td.name { font-size:14px; }
     td.customer { font-size:13.5px; }
     td.machine { font-weight:600; color:#1a1f36; }
     td.num { font-variant-numeric: tabular-nums; }
-    .tag-badge { display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; margin-right:6px; border-radius:6px; background:#ffec99; color:#7f2d00; font-size:13px; font-weight:900; box-shadow: inset 0 0 0 1px #ffd43b; }
+    .tag-badge { display:inline-block; width:10px; height:10px; margin-right:8px; border-radius:50%; background:#228be6; }
     .lot-list {
       margin: 0;
       padding: 6px 10px 6px 22px;
@@ -731,11 +734,13 @@ INLINE_TEMPLATE = r"""
       border: 1px solid #dbe4ff;
       border-radius: 6px;
     }
-    .lot-list li { margin: 2px 0; }
+    .lot-list li { margin: 2px 0; white-space: nowrap; }
     .lot-tag { font-weight:700; color:#0b5ed7; }
-    .lot-metrics { color:#344054; }
+    .lot-date { margin-left:4px; color:#101828; font-size:0.9em; }
+    .lot-metrics { color:#344054; white-space: nowrap; }
     .lot-metrics.red { color:#c92a2a; font-weight:600; }
     /* サマリテーブルのヘッダ/データ位置を一致させる（新レイアウト） */
+    table.summary th { white-space: nowrap; }
     table.summary th:nth-child(1),
     table.summary th:nth-child(2),
     table.summary th:nth-child(3),
@@ -770,7 +775,7 @@ INLINE_TEMPLATE = r"""
       border:1px solid #dbe4ff;
     }
     .section-header .icon { font-size:18px; }
-    .section-header.worst { background:#fff4e6; border-color:#ffe8cc; color:#7f2d00; }
+    .section-header.worst { background:#ffe3e3; border-color:#ffc9c9; color:#c92a2a; }
     .section-header.normal { background:#eef8f3; border-color:#d3f9d8; color:#0f5132; }
     .section-sub { font-size:11.5px; font-weight:600; color:inherit; opacity:.75; margin-left:auto; }
     .ai-row td { background:#f9fbff; text-align:left; padding:2px 8px; }
@@ -835,8 +840,9 @@ INLINE_TEMPLATE = r"""
         display:block;
         margin-bottom:4px;
       }
-      .lot-list { width:100%; word-break: break-word; }
-      .lot-metrics { word-break: break-word; }
+      .lot-list { width:100%; }
+      .lot-list li { white-space: nowrap; }
+      .lot-metrics { white-space: nowrap; }
       /* AIコメント行はカード外で全幅・左寄せ */
       table.summary tr.ai-row { padding:0; margin:0 0 10px 0; }
       table.summary tr.ai-row td {
@@ -865,7 +871,7 @@ INLINE_TEMPLATE = r"""
       {% if worst_today_summary %}
       <div class="section-header worst">
         <span class="icon">⚠</span>
-        <span>41期ワースト製品（本日分）</span>
+        <span>41期ワースト製品（{{ run_date_short }}分）</span>
         <span class="section-sub">重点監視対象</span>
       </div>
       <table class="summary">
@@ -883,7 +889,7 @@ INLINE_TEMPLATE = r"""
         <tbody>
           {% for row in worst_today_summary %}
           <tr>
-            <td class="left key" data-label="品番"><span class="tag-badge">🏷</span>{{ row["品番"] }}</td>
+            <td class="left key" data-label="品番"><span class="tag-badge"></span>{{ row["品番"] }}</td>
             <td class="left name" data-label="品名">{{ row.get("品名","") }}</td>
             <td class="left customer" data-label="客先名">{{ row.get("客先名","") }}</td>
             <td class="num" data-label="数量合計">{{ "{:,.0f}".format(row["数量合計"]) }}</td>
@@ -898,6 +904,7 @@ INLINE_TEMPLATE = r"""
                   {% set lot_has_ng = (lot["総不具合数"]|float) > 0 or (lot["不良率"]|float) > 0 %}
                   <li>
                     <span class="lot-tag">{{ lot["号機"] }}</span>
+                    {% if lot["ロット日"] %}<span class="lot-date">{{ lot["ロット日"] }}</span>{% endif %}
                     <span class="lot-metrics {{ 'red' if lot_has_ng else '' }}">
                       数量{{ "{:,.0f}".format(lot["数量"]) }},
                       不良{{ "{:,.0f}".format(lot["総不具合数"]) }}
@@ -933,7 +940,7 @@ INLINE_TEMPLATE = r"""
 
       <div class="section-header normal">
         <span class="icon">📋</span>
-        <span>本日サマリー</span>
+        <span>{{ run_date_short }}サマリー</span>
         <span class="section-sub">検査結果一覧</span>
       </div>
       <table class="summary">
@@ -951,7 +958,7 @@ INLINE_TEMPLATE = r"""
         <tbody>
           {% for row in today_summary %}
           <tr>
-            <td class="left key" data-label="品番"><span class="tag-badge">🏷</span>{{ row["品番"] }}</td>
+            <td class="left key" data-label="品番"><span class="tag-badge"></span>{{ row["品番"] }}</td>
             <td class="left name" data-label="品名">{{ row.get("品名","") }}</td>
             <td class="left customer" data-label="客先名">{{ row.get("客先名","") }}</td>
             <td class="num" data-label="数量合計">{{ "{:,.0f}".format(row["数量合計"]) }}</td>
@@ -966,6 +973,7 @@ INLINE_TEMPLATE = r"""
                   {% set lot_has_ng = (lot["総不具合数"]|float) > 0 or (lot["不良率"]|float) > 0 %}
                   <li>
                     <span class="lot-tag">{{ lot["号機"] }}</span>
+                    {% if lot["ロット日"] %}<span class="lot-date">{{ lot["ロット日"] }}</span>{% endif %}
                     <span class="lot-metrics {{ 'red' if lot_has_ng else '' }}">
                       数量{{ "{:,.0f}".format(lot["数量"]) }},
                       不良{{ "{:,.0f}".format(lot["総不具合数"]) }}
@@ -996,7 +1004,7 @@ INLINE_TEMPLATE = r"""
           {% endfor %}
         </tbody>
       </table>
-      <div class="muted">サマリ表示ロット数: {{ summary_lot_count }}（対象ロット数: {{ today_lot_count }} / 不具合レコード数: {{ today_defect_count }}）</div>
+      <div class="muted">サマリ表示ロット数: {{ summary_lot_count }}（不具合なしロット数: {{ no_defect_lot_count }}）</div>
     </div>
 
   </main>
@@ -1045,14 +1053,22 @@ def generate_dashboard(run_date: datetime, cfg: Config) -> Path:
     target_hinbans = sorted(today_summary["品番"].astype(str).unique().tolist()) if "品番" in today_summary.columns else []
     lot_history = compute_lot_history(defects_3y, target_hinbans)
 
+    # 不良数が0のロットを除外
+    total_lot_count_before_filter = len(today_summary) if not today_summary.empty else 0
+    if "総不具合数" in today_summary.columns:
+        today_summary_filtered = today_summary[today_summary["総不具合数"] > 0].copy()
+    else:
+        today_summary_filtered = today_summary.copy()
+    no_defect_lot_count = total_lot_count_before_filter - len(today_summary_filtered)
+
     worst_set = set(FIXED_WORST_41ST_HINBANS)
-    if "品番" in today_summary.columns:
-        mask_worst_today = today_summary["品番"].astype(str).isin(worst_set)
-        worst_today_summary = today_summary.loc[mask_worst_today].copy()
-        normal_today_summary = today_summary.loc[~mask_worst_today].copy()
+    if "品番" in today_summary_filtered.columns:
+        mask_worst_today = today_summary_filtered["品番"].astype(str).isin(worst_set)
+        worst_today_summary = today_summary_filtered.loc[mask_worst_today].copy()
+        normal_today_summary = today_summary_filtered.loc[~mask_worst_today].copy()
     else:
         worst_today_summary = pd.DataFrame()
-        normal_today_summary = today_summary
+        normal_today_summary = today_summary_filtered
 
     # GeminiでAIコメント生成（固定ワーストは専用プロンプト、その他は一般プロンプト）
     ai_comments: Dict[str, str] = {}
@@ -1142,8 +1158,18 @@ def generate_dashboard(run_date: datetime, cfg: Config) -> Path:
             sub_sorted = sub.sort_values("不良率", ascending=False)
             lot_list: List[Dict[str, object]] = []
             for _, r in sub_sorted.iterrows():
+                # ロット日（指示日）をフォーマット
+                lot_date_val = r.get("指示日", "")
+                if pd.notna(lot_date_val) and lot_date_val != "":
+                    if hasattr(lot_date_val, "strftime"):
+                        lot_date_str = lot_date_val.strftime("%m/%d")
+                    else:
+                        lot_date_str = str(lot_date_val)
+                else:
+                    lot_date_str = ""
                 lot_list.append({
                     "号機": str(r.get("号機", "")),
+                    "ロット日": lot_date_str,
                     "数量": float(r.get("数量", 0)),
                     "総不具合数": float(r.get("総不具合数", 0)),
                     "不良率": float(r.get("不良率", 0)),
@@ -1169,12 +1195,13 @@ def generate_dashboard(run_date: datetime, cfg: Config) -> Path:
     worst_today_grouped = group_by_hinban(worst_today_summary)
     normal_today_grouped = group_by_hinban(normal_today_summary)
 
-    # サマリに表示されているロット数を計算（品番×号機の組み合わせ数）
-    summary_lot_count = len(today_summary) if not today_summary.empty else 0
+    # サマリに表示されているロット数を計算（不良数0を除外した後の品番×号機の組み合わせ数）
+    summary_lot_count = len(today_summary_filtered) if not today_summary_filtered.empty else 0
 
     template = load_template(cfg)
     html = template.render(
         run_date=run_date.strftime("%Y-%m-%d"),
+        run_date_short=f"{run_date.month}/{run_date.day}",
         logo_text=cfg.logo_text,
         logo_data_uri=f"data:image/png;base64,{LOGO_BASE64}",
         today_summary=normal_today_grouped,
@@ -1182,6 +1209,7 @@ def generate_dashboard(run_date: datetime, cfg: Config) -> Path:
         today_lot_count=int(today_lots_df["生産ロットID"].nunique()),
         today_defect_count=int(len(today_defects_df)),
         summary_lot_count=summary_lot_count,
+        no_defect_lot_count=no_defect_lot_count,
         breakdown_columns=[],
         breakdown_rows=[],
         ai_comments=ai_comments,
@@ -1196,14 +1224,15 @@ def generate_dashboard(run_date: datetime, cfg: Config) -> Path:
 
 def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Generate defect dashboard HTML")
-    p.add_argument("--run-date", type=str, help="YYYY-MM-DD (default: today)")
+    p.add_argument("--run-date", type=str, help="YYYY-MM-DD (default: yesterday)")
     p.add_argument("--config", type=str, help="path to JSON config")
     return p.parse_args(argv)
 
 
 def main(argv: Optional[Iterable[str]] = None) -> None:
     args = parse_args(argv)
-    run_date = datetime.now()
+    # デフォルトは昨日の日付
+    run_date = datetime.now() - timedelta(days=1)
     if args.run_date:
         run_date = datetime.strptime(args.run_date, "%Y-%m-%d")
     cfg = load_config(args.config)
