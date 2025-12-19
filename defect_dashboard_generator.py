@@ -211,9 +211,8 @@ def generate_worst_part_comment(prompt: str, model_name: Optional[str] = None) -
     candidates = [
         model_name,
         os.environ.get("GEMINI_MODEL"),
-        "gemini-1.5-pro-latest",
-        "gemini-1.5-flash-latest",
-        "gemini-2.0-flash",
+        "gemini-2.5-flash-lite",   # ✅ 最優先で追加
+        "gemini-1.5-flash",        # フォールバック
     ]
     last_err: Optional[Exception] = None
     for name in [c for c in candidates if c]:
@@ -224,8 +223,22 @@ def generate_worst_part_comment(prompt: str, model_name: Optional[str] = None) -
         except Exception as e:  # pragma: no cover
             msg = str(e)
             if "429" in msg or "quota" in msg.lower() or "rate limit" in msg.lower():
-                _GEMINI_QUOTA_EXCEEDED = True
-                return ""
+                # レート制限エラー時は1分待機してリトライ
+                logging.warning(f"Rate limit detected for model {name}. Waiting 60 seconds before retry...")
+                time.sleep(60)
+                try:
+                    model = genai.GenerativeModel(name)
+                    response = model.generate_content(prompt)
+                    return (response.text or "").strip()
+                except Exception as retry_err:
+                    retry_msg = str(retry_err)
+                    if "429" in retry_msg or "quota" in retry_msg.lower() or "rate limit" in retry_msg.lower():
+                        _GEMINI_QUOTA_EXCEEDED = True
+                        logging.error("Rate limit still exceeded after retry. Stopping AI comment generation.")
+                        return ""
+                    # リトライ後も他のエラーが発生した場合は次の候補を試す
+                    last_err = retry_err
+                    continue
             last_err = e
             continue
     if last_err:
@@ -1305,8 +1318,8 @@ def generate_dashboard(run_date: datetime, cfg: Config) -> Path:
                 if _GEMINI_QUOTA_EXCEEDED:
                     ai_status = "Gemini API のクォータ上限に達したため、以降のAIコメント生成を停止しました。"
                     break
-                # レートリミット対策: API呼び出し間に4秒の遅延を追加
-                time.sleep(4)
+                # レートリミット対策: API呼び出し間に8秒の遅延を追加（10 RPM制限に対応）
+                time.sleep(8)
         except Exception as e:
             ai_status = f"Gemini コメント生成に失敗しました（{e.__class__.__name__}）。"
             logging.warning("Gemini comment generation skipped: %s", e)
