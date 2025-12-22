@@ -1199,7 +1199,7 @@ def load_template(cfg: Config) -> Template:
 # メイン処理
 # -----------------------------
 
-def generate_dashboard(run_date: datetime, cfg: Config) -> Path:
+def generate_dashboard(run_date: datetime, cfg: Config) -> Optional[Path]:
     if load_dotenv is not None:
         load_dotenv()
     setup_logging(cfg.output_dir)
@@ -1208,7 +1208,12 @@ def generate_dashboard(run_date: datetime, cfg: Config) -> Path:
     defect_df = read_access_table(cfg.defect_db_path, cfg.defect_table)
     product_master_df = read_product_master(cfg.defect_db_path)
 
+    # run_date（デフォルト: 昨日）対象のロットを抽出
     today_lots_df = extract_today_lots(appearance_df, run_date)
+    target_lot_count = int(today_lots_df["生産ロットID"].dropna().nunique())
+    if target_lot_count == 0:
+        logging.info("no lots found for run_date=%s; skip html generation", run_date.date())
+        return None
     today_defects_df = join_defects(today_lots_df, defect_df)
 
     today_summary, defects_breakdown = compute_today_summary(today_lots_df, today_defects_df)
@@ -1381,7 +1386,7 @@ def generate_dashboard(run_date: datetime, cfg: Config) -> Path:
         logo_data_uri=f"data:image/png;base64,{LOGO_BASE64}",
         today_summary=normal_today_grouped,
         worst_today_summary=worst_today_grouped,
-        today_lot_count=int(today_lots_df["生産ロットID"].nunique()),
+        today_lot_count=target_lot_count,
         today_defect_count=int(len(today_defects_df)),
         worst_lot_count=worst_lot_count,
         normal_lot_count=normal_lot_count,
@@ -1412,7 +1417,9 @@ def main(argv: Optional[Iterable[str]] = None) -> None:
         run_date = datetime.strptime(args.run_date, "%Y-%m-%d")
     cfg = load_config(args.config)
     try:
-        generate_dashboard(run_date, cfg)
+        out_path = generate_dashboard(run_date, cfg)
+        if out_path is None:
+            return
     except Exception as e:
         logging.exception("failed to generate dashboard: %s", e)
         raise
