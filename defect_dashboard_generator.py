@@ -333,15 +333,33 @@ def connect_access(db_path: str):
 
 
 def read_access_table(db_path: str, table: str) -> pd.DataFrame:
-    logging.info("reading Access table %s from %s", table, db_path)
-    with connect_access(db_path) as conn:
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                message="pandas only supports SQLAlchemy connectable*",
-                category=UserWarning,
+    retries = int(os.environ.get("ACCESS_READ_RETRIES", "3"))
+    initial_delay_s = float(os.environ.get("ACCESS_READ_RETRY_DELAY_S", "2"))
+    max_delay_s = float(os.environ.get("ACCESS_READ_RETRY_MAX_DELAY_S", "20"))
+
+    for attempt in range(1, retries + 1):
+        try:
+            logging.info("reading Access table %s from %s (attempt %s/%s)", table, db_path, attempt, retries)
+            with connect_access(db_path) as conn:
+                with warnings.catch_warnings():
+                    warnings.filterwarnings(
+                        "ignore",
+                        message="pandas only supports SQLAlchemy connectable*",
+                        category=UserWarning,
+                    )
+                    return pd.read_sql(f"SELECT * FROM {table}", conn)
+        except Exception as e:
+            if attempt >= retries:
+                raise
+            delay_s = min(max_delay_s, initial_delay_s * (2 ** (attempt - 1)))
+            logging.warning(
+                "failed to read Access table %s from %s: %s; retrying in %.1fs",
+                table,
+                db_path,
+                e,
+                delay_s,
             )
-            return pd.read_sql(f"SELECT * FROM {table}", conn)
+            time.sleep(delay_s)
 
 
 def read_product_master(db_path: str) -> pd.DataFrame:
@@ -389,7 +407,7 @@ def extract_today_lots(appearance_df: pd.DataFrame, run_date: datetime) -> pd.Da
     if date_col:
         today_mask = appearance_df[date_col].dt.date == run_date.date()
         today_df = appearance_df.loc[today_mask].copy()
-        logging.info("appearance rows for yesterday: %s", len(today_df))
+        logging.info("appearance rows for run_date=%s: %s", run_date.date(), len(today_df))
     else:
         today_df = appearance_df.copy()
         logging.warning("no date column in appearance table; using all rows")
@@ -1205,8 +1223,6 @@ def generate_dashboard(run_date: datetime, cfg: Config) -> Optional[Path]:
     setup_logging(cfg.output_dir)
 
     appearance_df = read_access_table(cfg.appearance_db_path, cfg.appearance_table)
-    defect_df = read_access_table(cfg.defect_db_path, cfg.defect_table)
-    product_master_df = read_product_master(cfg.defect_db_path)
 
     # run_date（デフォルト: 昨日）対象のロットを抽出
     today_lots_df = extract_today_lots(appearance_df, run_date)
@@ -1214,6 +1230,9 @@ def generate_dashboard(run_date: datetime, cfg: Config) -> Optional[Path]:
     if target_lot_count == 0:
         logging.info("no lots found for run_date=%s; skip html generation", run_date.date())
         return None
+
+    defect_df = read_access_table(cfg.defect_db_path, cfg.defect_table)
+    product_master_df = read_product_master(cfg.defect_db_path)
     today_defects_df = join_defects(today_lots_df, defect_df)
 
     today_summary, defects_breakdown = compute_today_summary(today_lots_df, today_defects_df)
