@@ -3,12 +3,14 @@
 
 要件定義書_defect_dashboard_generator.md に基づく実装。
 2つのAccess DB（外観検査集計 / 不具合情報）から昨日対象ロットの不具合を集計し、
-過去3年の推移と合わせてSaaS風HTMLダッシュボードを生成する。
+過去2年の推移と合わせてSaaS風HTMLダッシュボードを生成する。
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
+import io
 import json
 import logging
 import os
@@ -22,6 +24,7 @@ import re
 
 import pandas as pd
 import pyodbc
+import requests
 try:
     from jinja2 import Environment, FileSystemLoader, Template
 except ImportError as e:  # pragma: no cover
@@ -42,6 +45,13 @@ except ImportError:  # pragma: no cover
 
 # Gemini クォータ超過時に以降の呼び出しを止めるためのフラグ
 _GEMINI_QUOTA_EXCEEDED = False
+
+# -----------------------------
+# ARAICHAT 設定
+# -----------------------------
+
+# ARAICHAT_ROOM_ID はスクリプト内で個別設定（.env の ARAICHAT_ROOM_ID は参照しない）
+ARAICHAT_ROOM_ID = "24" #40
 
 
 # -----------------------------
@@ -161,7 +171,7 @@ def build_worst_part_prompt_for_term(
     worst_label = f"{term_info.term_number}期ワースト品番"
     return f"""
 以下は、当社（精密加工部品メーカー）における「{worst_label}」の
-過去3年データと昨日の不具合データです。（対象期: {term_label}）
+過去2年データと昨日の不具合データです。（対象期: {term_label}）
 
 目的：製造がすぐ行動できる **短く要点だけのコメント** を作ること。
 必ず **3〜6行以内** にまとめること。長文は禁止。
@@ -173,7 +183,7 @@ def build_worst_part_prompt_for_term(
 客先: {customer}
 主な不具合: {major_defects}
 
-【過去3年の傾向】
+【過去2年の傾向】
 {trend_table}
 
 【不具合区分サマリ】
@@ -200,20 +210,17 @@ def build_worst_part_prompt_for_term(
 """.strip()
 
 
-def generate_worst_part_comment(prompt: str, model_name: Optional[str] = None) -> str:
+def generate_worst_part_comment(prompt: str, model_name: Optional[str]) -> str:
     if genai is None:
         return ""
     global _GEMINI_QUOTA_EXCEEDED
     if _GEMINI_QUOTA_EXCEEDED:
         return ""
 
-    # モデル名は環境変数 GEMINI_MODEL で上書き可能。存在しない場合に備えフォールバックする。
-    candidates = [
-        model_name,
-        os.environ.get("GEMINI_MODEL"),
-        "gemini-2.5-flash-lite",   # ✅ 最優先で追加
-        "gemini-1.5-flash",        # フォールバック
-    ]
+    if not model_name:
+        raise RuntimeError("GEMINI_MODEL が設定されていません（.env を確認してください）")
+
+    candidates = [model_name]
     last_err: Optional[Exception] = None
     for name in [c for c in candidates if c]:
         try:
@@ -246,6 +253,77 @@ def generate_worst_part_comment(prompt: str, model_name: Optional[str] = None) -
     return ""
 
 
+def _get_gemini_comment_cache_path(output_dir: str) -> Path:
+    return Path(output_dir) / "gemini_comment_cache.json"
+
+
+def load_gemini_comment_cache(output_dir: str) -> Dict[str, str]:
+    path = _get_gemini_comment_cache_path(output_dir)
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return {str(k): str(v) for k, v in data.items()}
+
+
+def save_gemini_comment_cache(output_dir: str, cache: Dict[str, str]) -> None:
+    path = _get_gemini_comment_cache_path(output_dir)
+    path.write_text(json.dumps(cache, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _gemini_cache_key(run_date: datetime, model_name: str, hinban: str, prompt: str) -> str:
+    prompt_digest = hashlib.sha256(prompt.encode("utf-8")).hexdigest()[:16]
+    return f"{run_date:%Y-%m-%d}|{model_name}|{hinban}|{prompt_digest}"
+
+
+def select_hinbans_for_ai(today_summary: pd.DataFrame, worst_set: set[str], max_parts: int) -> List[str]:
+    if today_summary.empty or "品番" not in today_summary.columns or max_parts <= 0:
+        return []
+
+    df = today_summary.copy()
+    df["品番"] = df["品番"].astype(str)
+
+    qty_col = "数量" if "数量" in df.columns else None
+    ng_col = "総不具合数" if "総不具合数" in df.columns else None
+    rate_col = "不良率" if "不良率" in df.columns else None
+
+    agg: Dict[str, str] = {}
+    if qty_col:
+        agg[qty_col] = "sum"
+    if ng_col:
+        agg[ng_col] = "sum"
+    if rate_col:
+        agg[rate_col] = "max"
+
+    if not agg:
+        return sorted(set(df["品番"].tolist()))[:max_parts]
+
+    stats = df.groupby("品番", dropna=False).agg(agg).reset_index()
+    if ng_col and ng_col in stats.columns:
+        stats = stats.sort_values(by=[ng_col], ascending=False)
+    elif rate_col and rate_col in stats.columns:
+        stats = stats.sort_values(by=[rate_col], ascending=False)
+
+    ordered = stats["品番"].astype(str).tolist()
+    worst_ordered = [h for h in ordered if h in worst_set]
+    other_ordered = [h for h in ordered if h not in worst_set]
+
+    selected: List[str] = []
+    for h in worst_ordered:
+        if h not in selected:
+            selected.append(h)
+    for h in other_ordered:
+        if len(selected) >= max_parts:
+            break
+        if h not in selected:
+            selected.append(h)
+    return selected
+
+
 def build_general_part_prompt(
     part_number: str,
     part_name: str,
@@ -259,7 +337,7 @@ def build_general_part_prompt(
 ) -> str:
     return f"""
 以下は、当社（精密加工部品メーカー）における対象品番の
-過去3年データと昨日の不具合データです。
+過去2年データと昨日の不具合データです。
 
 目的：製造がすぐ行動できる **短く要点だけのコメント** を作ること。
 必ず **3〜6行以内** にまとめること。長文は禁止。
@@ -270,7 +348,7 @@ def build_general_part_prompt(
 品名: {part_name}
 客先: {customer}
 
-【過去3年の傾向】
+【過去2年の傾向】
 {trend_table}
 
 【不具合区分サマリ】
@@ -527,91 +605,19 @@ def compute_today_summary(today_lots_df: pd.DataFrame, today_defects_df: pd.Data
     return summary, defects_breakdown
 
 
-def filter_last_3years(defect_df: pd.DataFrame, run_date: datetime) -> pd.DataFrame:
+def filter_last_2years(defect_df: pd.DataFrame, run_date: datetime) -> pd.DataFrame:
     date_col = find_date_column(defect_df)
     defect_df = normalize_dates(defect_df, date_col)
     if not date_col:
-        logging.warning("no date column in defect table; using all rows for 3-year stats")
+        logging.warning("no date column in defect table; using all rows for 2-year stats")
         return defect_df
-    cutoff = run_date - timedelta(days=365 * 3)
+    cutoff = run_date - timedelta(days=365 * 2)
     return defect_df.loc[defect_df[date_col] >= cutoff].copy()
-
-
-def compute_worst_hinban(defects_3y: pd.DataFrame) -> Optional[str]:
-    if "品番" not in defects_3y.columns:
-        return None
-    qty_col = "数量" if "数量" in defects_3y.columns else None
-    if "総不具合数" in defects_3y.columns:
-        g = defects_3y.groupby("品番", as_index=False).agg({"総不具合数": "sum", **({qty_col: "sum"} if qty_col else {})})
-        if qty_col:
-            g["不良率"] = g["総不具合数"] / g[qty_col].replace(0, pd.NA)
-        else:
-            g["不良率"] = g["総不具合数"]
-    else:
-        defect_cols = detect_defect_columns(defects_3y)
-        g = defects_3y.groupby("品番", as_index=False)[defect_cols].sum()
-        g["総不具合数"] = g[defect_cols].sum(axis=1)
-        g["不良率"] = g["総不具合数"]
-    g = g.sort_values("不良率", ascending=False)
-    return g.iloc[0]["品番"] if len(g) else None
-
-
-def aggregate_trends(defects_3y: pd.DataFrame, target_hinbans: List[str], run_date: datetime) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    if "品番" not in defects_3y.columns:
-        return pd.DataFrame(), pd.DataFrame()
-
-    date_col = find_date_column(defects_3y)
-    defects_3y = normalize_dates(defects_3y, date_col)
-    if not date_col:
-        return pd.DataFrame(), pd.DataFrame()
-
-    defect_cols = detect_defect_columns(defects_3y)
-    if "総不具合数" in defects_3y.columns:
-        def_series = defects_3y["総不具合数"]
-    else:
-        def_series = defects_3y[defect_cols].sum(axis=1) if defect_cols else pd.Series(0, index=defects_3y.index)
-
-    qty_col = "数量" if "数量" in defects_3y.columns else None
-    base = defects_3y.copy()
-    base["_defect_total"] = def_series
-    base["_qty_total"] = base[qty_col] if qty_col else 0
-    base = base[base["品番"].isin(target_hinbans)].copy()
-    if base.empty:
-        return pd.DataFrame(), pd.DataFrame()
-
-    base["月"] = base[date_col].dt.to_period("M").dt.to_timestamp()
-    base["四半期"] = base[date_col].dt.to_period("Q").dt.to_timestamp()
-
-    monthly = base.groupby(["品番", "月"], as_index=False).agg({"_defect_total": "sum", "_qty_total": "sum"})
-    monthly["不良率"] = monthly.apply(
-        lambda r: (r["_defect_total"] / r["_qty_total"]) if r["_qty_total"] else 0.0,
-        axis=1,
-    )
-
-    quarterly = base.groupby(["品番", "四半期"], as_index=False).agg({"_defect_total": "sum", "_qty_total": "sum"})
-    quarterly["不良率"] = quarterly.apply(
-        lambda r: (r["_defect_total"] / r["_qty_total"]) if r["_qty_total"] else 0.0,
-        axis=1,
-    )
-
-    return monthly, quarterly
-
-
-def make_auto_comment(monthly: pd.DataFrame, hinban: str) -> str:
-    m = monthly[monthly["品番"] == hinban].sort_values("月")
-    if len(m) < 3:
-        return "過去データが少なく傾向判定できません。"
-    last3 = m.tail(3)["不良率"].tolist()
-    if last3[2] > last3[1] > last3[0]:
-        return "直近3ヶ月で不良率が増加傾向です。要因の深掘りを推奨します。"
-    if last3[2] < last3[1] < last3[0]:
-        return "直近3ヶ月で不良率が改善傾向です。継続監視してください。"
-    return "直近期で不良率は横ばいです。重点不具合の対策状況を確認してください。"
 
 
 def compute_lot_history(defects_3y: pd.DataFrame, target_hinbans: List[str]) -> Dict[str, List[Dict[str, object]]]:
     """
-    過去3年分のロット単位推移を返す。
+    過去2年分のロット単位推移を返す。
     返却形式: {品番: [{生産ロットID, 日付, 号機, 数量, 総不具合数, 不良率}, ...]}
     """
     if defects_3y.empty or "品番" not in defects_3y.columns or "生産ロットID" not in defects_3y.columns:
@@ -679,11 +685,11 @@ def build_trend_table_from_history(history_rows: List[Dict[str, object]], limit:
 
 def build_trend_summary_from_history(history_rows: List[Dict[str, object]], recent_limit: int = 20) -> str:
     """
-    過去3年の全体要約 + 直近期ロット表を返す。
+    過去2年の全体要約 + 直近期ロット表を返す。
     AIが「直近だけ」と誤解しないよう、期間・ロット数・年次傾向を明示する。
     """
     if not history_rows:
-        return "過去3年のロットデータなし"
+        return "過去2年のロットデータなし"
 
     # 全体期間
     dates = [r.get("日付") for r in history_rows if r.get("日付")]
@@ -710,7 +716,7 @@ def build_trend_summary_from_history(history_rows: List[Dict[str, object]], rece
     recent_table = build_trend_table_from_history(history_rows, limit=recent_limit)
 
     return "\n".join([
-        f"【過去3年のロット推移 要約】",
+        f"【過去2年のロット推移 要約】",
         f"- 期間: {start} 〜 {end}",
         f"- ロット数: {lot_count}",
         *[f"- {l}" for l in year_lines],
@@ -1217,7 +1223,96 @@ def load_template(cfg: Config) -> Template:
 # メイン処理
 # -----------------------------
 
-def generate_dashboard(run_date: datetime, cfg: Config) -> Optional[Path]:
+def _get_araichat_sent_cache_path(output_dir: str) -> Path:
+    return Path(output_dir) / "araichat_sent_cache.json"
+
+
+def load_araichat_sent_cache(output_dir: str) -> Dict[str, Dict[str, object]]:
+    path = _get_araichat_sent_cache_path(output_dir)
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return data  # type: ignore[return-value]
+
+
+def save_araichat_sent_cache(output_dir: str, cache: Dict[str, Dict[str, object]]) -> None:
+    path = _get_araichat_sent_cache_path(output_dir)
+    path.write_text(json.dumps(cache, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def check_already_sent_to_araichat(output_dir: str, digest: str, room_id: str, file_name: str) -> bool:
+    cache = load_araichat_sent_cache(output_dir)
+    key = f"{room_id}:{digest}"
+    if key not in cache:
+        return False
+    logging.info("already sent to ARAICHAT; skip: %s (room_id=%s)", file_name, room_id)
+    return True
+
+
+def mark_as_sent_to_araichat(output_dir: str, digest: str, room_id: str, file_name: str) -> None:
+    cache = load_araichat_sent_cache(output_dir)
+    key = f"{room_id}:{digest}"
+    cache[key] = {
+        "file_name": file_name,
+        "room_id": room_id,
+        "sent_time": int(time.time()),
+    }
+    save_araichat_sent_cache(output_dir, cache)
+
+
+def send_html_to_araichat(html: str, file_name: str, run_date: datetime, output_dir: str) -> None:
+    api_key = os.getenv("ARAICHAT_API_KEY")
+    if not api_key:
+        raise RuntimeError("ARAICHAT_API_KEY が設定されていません（.env を確認してください）")
+    base_url_env = os.getenv("ARAICHAT_BASE_URL")
+    if not base_url_env:
+        raise RuntimeError("ARAICHAT_BASE_URL が設定されていません（.env を確認してください）")
+    if not ARAICHAT_ROOM_ID:
+        raise RuntimeError("ARAICHAT_ROOM_ID が未設定です（スクリプト内で設定してください）")
+
+    base_url = base_url_env.rstrip("/")
+    url = f"{base_url}/api/integrations/send/{ARAICHAT_ROOM_ID}"
+
+    html_bytes = html.encode("utf-8")
+    digest = hashlib.sha256(html_bytes).hexdigest()
+
+    if check_already_sent_to_araichat(output_dir, digest=digest, room_id=ARAICHAT_ROOM_ID, file_name=file_name):
+        return
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Idempotency-Key": f"defect-dashboard:{run_date:%Y-%m-%d}:{digest[:32]}",
+    }
+    data = {"text": f"不具合分析ダッシュボード: {run_date:%Y-%m-%d}"}
+
+    max_retries = 3
+    timeout = (5, 180)
+    for attempt in range(1, max_retries + 1):
+        try:
+            if attempt > 1:
+                time.sleep(2 ** (attempt - 1))
+            files = [("files", (file_name, io.BytesIO(html_bytes), "text/html"))]
+            resp = requests.post(url, headers=headers, data=data, files=files, timeout=timeout)
+            if resp.status_code >= 400:
+                resp_body = (resp.text or "").strip()
+                if len(resp_body) > 2000:
+                    resp_body = resp_body[:2000] + "...(truncated)"
+                logging.warning("ARAICHAT error response: status=%s body=%s", resp.status_code, resp_body)
+            resp.raise_for_status()
+            mark_as_sent_to_araichat(output_dir, digest=digest, room_id=ARAICHAT_ROOM_ID, file_name=file_name)
+            return
+        except requests.exceptions.RequestException as e:
+            logging.warning("ARAICHAT send failed (attempt %s/%s): %s", attempt, max_retries, e)
+            if attempt == max_retries:
+                raise
+
+
+def generate_dashboard(run_date: datetime, cfg: Config) -> bool:
     if load_dotenv is not None:
         load_dotenv()
     setup_logging(cfg.output_dir)
@@ -1229,7 +1324,7 @@ def generate_dashboard(run_date: datetime, cfg: Config) -> Optional[Path]:
     target_lot_count = int(today_lots_df["生産ロットID"].dropna().nunique())
     if target_lot_count == 0:
         logging.info("no lots found for run_date=%s; skip html generation", run_date.date())
-        return None
+        return False
 
     defect_df = read_access_table(cfg.defect_db_path, cfg.defect_table)
     product_master_df = read_product_master(cfg.defect_db_path)
@@ -1246,9 +1341,9 @@ def generate_dashboard(run_date: datetime, cfg: Config) -> Optional[Path]:
         today_summary["品名"] = ""
         today_summary["客先名"] = ""
 
-    defects_3y = filter_last_3years(defect_df, run_date)
+    defects_2y = filter_last_2years(defect_df, run_date)
     target_hinbans = sorted(today_summary["品番"].astype(str).unique().tolist()) if "品番" in today_summary.columns else []
-    lot_history = compute_lot_history(defects_3y, target_hinbans)
+    lot_history = compute_lot_history(defects_2y, target_hinbans)
 
     # ワースト品番と通常品番を分離
     worst_set = set(FIXED_WORST_41ST_HINBANS)
@@ -1281,10 +1376,16 @@ def generate_dashboard(run_date: datetime, cfg: Config) -> Optional[Path]:
             configure_gemini()
             prev_term = get_previous_term_info(run_date.date())
 
-            all_today_hinbans = (
-                sorted(set(today_summary["品番"].astype(str).tolist()))
-                if "品番" in today_summary.columns else []
-            )
+            model_name = os.environ.get("GEMINI_MODEL")
+            max_parts = int(os.environ.get("GEMINI_MAX_PARTS", "15"))
+            request_interval_seconds = float(os.environ.get("GEMINI_REQUEST_INTERVAL_SECONDS", "12"))
+            cache = load_gemini_comment_cache(cfg.output_dir)
+
+            if not model_name:
+                ai_status = "Geminiモデル未設定のためAIコメントを生成できません。（.env に GEMINI_MODEL を設定してください）"
+                raise RuntimeError("GEMINI_MODEL not set")
+
+            all_today_hinbans = select_hinbans_for_ai(today_summary, worst_set, max_parts=max_parts)
 
             for hinban in all_today_hinbans:
                 hinban = str(hinban).strip()
@@ -1306,7 +1407,7 @@ def generate_dashboard(run_date: datetime, cfg: Config) -> Optional[Path]:
 
                 history_rows = lot_history.get(hinban, [])
                 trend_table_str = build_trend_summary_from_history(history_rows)
-                defect_kind_summary_str = build_defect_kind_summary(defects_3y, hinban)
+                defect_kind_summary_str = build_defect_kind_summary(defects_2y, hinban)
 
                 if hinban in worst_set:
                     info = FIXED_WORST_41ST_INFO.get(hinban, {})
@@ -1336,14 +1437,21 @@ def generate_dashboard(run_date: datetime, cfg: Config) -> Optional[Path]:
                         today_defect_kinds=today_defect_kinds,
                     )
 
-                comment = generate_worst_part_comment(prompt)
-                if comment:
-                    ai_comments[hinban] = comment
+                cache_key = _gemini_cache_key(run_date, model_name=model_name, hinban=hinban, prompt=prompt)
+                cached = cache.get(cache_key)
+                if cached:
+                    ai_comments[hinban] = cached
+                else:
+                    comment = generate_worst_part_comment(prompt, model_name=model_name)
+                    if comment:
+                        ai_comments[hinban] = comment
+                        cache[cache_key] = comment
+                        save_gemini_comment_cache(cfg.output_dir, cache)
                 if _GEMINI_QUOTA_EXCEEDED:
                     ai_status = "Gemini API のクォータ上限に達したため、以降のAIコメント生成を停止しました。"
                     break
-                # レートリミット対策: API呼び出し間に8秒の遅延を追加（10 RPM制限に対応）
-                time.sleep(8)
+                # レートリミット対策: API呼び出し間隔は環境変数で調整可能
+                time.sleep(request_interval_seconds)
         except Exception as e:
             ai_status = f"Gemini コメント生成に失敗しました（{e.__class__.__name__}）。"
             logging.warning("Gemini comment generation skipped: %s", e)
@@ -1415,10 +1523,10 @@ def generate_dashboard(run_date: datetime, cfg: Config) -> Optional[Path]:
         ai_status=ai_status,
     )
 
-    out_path = Path(cfg.output_dir) / f"defect_dashboard_{run_date:%Y-%m-%d}.html"
-    out_path.write_text(html, encoding="utf-8")
-    logging.info("dashboard written: %s", out_path)
-    return out_path
+    file_name = f"defect_dashboard_{run_date:%Y-%m-%d}.html"
+    send_html_to_araichat(html, file_name=file_name, run_date=run_date, output_dir=cfg.output_dir)
+    logging.info("dashboard sent to ARAICHAT: %s (room_id=%s)", file_name, ARAICHAT_ROOM_ID)
+    return True
 
 
 def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
@@ -1436,8 +1544,8 @@ def main(argv: Optional[Iterable[str]] = None) -> None:
         run_date = datetime.strptime(args.run_date, "%Y-%m-%d")
     cfg = load_config(args.config)
     try:
-        out_path = generate_dashboard(run_date, cfg)
-        if out_path is None:
+        ok = generate_dashboard(run_date, cfg)
+        if not ok:
             return
     except Exception as e:
         logging.exception("failed to generate dashboard: %s", e)
