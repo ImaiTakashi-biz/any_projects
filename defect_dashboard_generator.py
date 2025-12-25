@@ -3,7 +3,7 @@
 
 要件定義書_defect_dashboard_generator.md に基づく実装。
 2つのAccess DB（外観検査集計 / 不具合情報）から昨日対象ロットの不具合を集計し、
-過去2年の推移と合わせてSaaS風HTMLダッシュボードを生成する。
+過去1年の推移と合わせてSaaS風HTMLダッシュボードを生成する。
 """
 
 from __future__ import annotations
@@ -51,7 +51,7 @@ _GEMINI_QUOTA_EXCEEDED = False
 # -----------------------------
 
 # ARAICHAT_ROOM_ID はスクリプト内で個別設定（.env の ARAICHAT_ROOM_ID は参照しない）
-ARAICHAT_ROOM_ID = "24" #40
+ARAICHAT_ROOM_ID = "40" #24
 
 
 # -----------------------------
@@ -171,7 +171,7 @@ def build_worst_part_prompt_for_term(
     worst_label = f"{term_info.term_number}期ワースト品番"
     return f"""
 以下は、当社（精密加工部品メーカー）における「{worst_label}」の
-過去2年データと昨日の不具合データです。（対象期: {term_label}）
+過去1年データと昨日の不具合データです。（対象期: {term_label}）
 
 目的：製造がすぐ行動できる **短く要点だけのコメント** を作ること。
 必ず **3〜6行以内** にまとめること。長文は禁止。
@@ -183,7 +183,7 @@ def build_worst_part_prompt_for_term(
 客先: {customer}
 主な不具合: {major_defects}
 
-【過去2年の傾向】
+【過去1年の傾向】
 {trend_table}
 
 【不具合区分サマリ】
@@ -337,7 +337,7 @@ def build_general_part_prompt(
 ) -> str:
     return f"""
 以下は、当社（精密加工部品メーカー）における対象品番の
-過去2年データと昨日の不具合データです。
+過去1年データと昨日の不具合データです。
 
 目的：製造がすぐ行動できる **短く要点だけのコメント** を作ること。
 必ず **3〜6行以内** にまとめること。長文は禁止。
@@ -348,7 +348,7 @@ def build_general_part_prompt(
 品名: {part_name}
 客先: {customer}
 
-【過去2年の傾向】
+【過去1年の傾向】
 {trend_table}
 
 【不具合区分サマリ】
@@ -605,19 +605,19 @@ def compute_today_summary(today_lots_df: pd.DataFrame, today_defects_df: pd.Data
     return summary, defects_breakdown
 
 
-def filter_last_2years(defect_df: pd.DataFrame, run_date: datetime) -> pd.DataFrame:
+def filter_last_1year(defect_df: pd.DataFrame, run_date: datetime) -> pd.DataFrame:
     date_col = find_date_column(defect_df)
     defect_df = normalize_dates(defect_df, date_col)
     if not date_col:
-        logging.warning("no date column in defect table; using all rows for 2-year stats")
+        logging.warning("no date column in defect table; using all rows for 1-year stats")
         return defect_df
-    cutoff = run_date - timedelta(days=365 * 2)
+    cutoff = run_date - timedelta(days=365 * 1)
     return defect_df.loc[defect_df[date_col] >= cutoff].copy()
 
 
 def compute_lot_history(defects_3y: pd.DataFrame, target_hinbans: List[str]) -> Dict[str, List[Dict[str, object]]]:
     """
-    過去2年分のロット単位推移を返す。
+    過去1年分のロット単位推移を返す。
     返却形式: {品番: [{生産ロットID, 日付, 号機, 数量, 総不具合数, 不良率}, ...]}
     """
     if defects_3y.empty or "品番" not in defects_3y.columns or "生産ロットID" not in defects_3y.columns:
@@ -685,11 +685,11 @@ def build_trend_table_from_history(history_rows: List[Dict[str, object]], limit:
 
 def build_trend_summary_from_history(history_rows: List[Dict[str, object]], recent_limit: int = 20) -> str:
     """
-    過去2年の全体要約 + 直近期ロット表を返す。
+    過去1年の全体要約 + 直近期ロット表を返す。
     AIが「直近だけ」と誤解しないよう、期間・ロット数・年次傾向を明示する。
     """
     if not history_rows:
-        return "過去2年のロットデータなし"
+        return "過去1年のロットデータなし"
 
     # 全体期間
     dates = [r.get("日付") for r in history_rows if r.get("日付")]
@@ -716,7 +716,7 @@ def build_trend_summary_from_history(history_rows: List[Dict[str, object]], rece
     recent_table = build_trend_table_from_history(history_rows, limit=recent_limit)
 
     return "\n".join([
-        f"【過去2年のロット推移 要約】",
+        f"【過去1年のロット推移 要約】",
         f"- 期間: {start} 〜 {end}",
         f"- ロット数: {lot_count}",
         *[f"- {l}" for l in year_lines],
@@ -1341,9 +1341,9 @@ def generate_dashboard(run_date: datetime, cfg: Config) -> bool:
         today_summary["品名"] = ""
         today_summary["客先名"] = ""
 
-    defects_2y = filter_last_2years(defect_df, run_date)
+    defects_1y = filter_last_1year(defect_df, run_date)
     target_hinbans = sorted(today_summary["品番"].astype(str).unique().tolist()) if "品番" in today_summary.columns else []
-    lot_history = compute_lot_history(defects_2y, target_hinbans)
+    lot_history = compute_lot_history(defects_1y, target_hinbans)
 
     # ワースト品番と通常品番を分離
     worst_set = set(FIXED_WORST_41ST_HINBANS)
@@ -1407,7 +1407,7 @@ def generate_dashboard(run_date: datetime, cfg: Config) -> bool:
 
                 history_rows = lot_history.get(hinban, [])
                 trend_table_str = build_trend_summary_from_history(history_rows)
-                defect_kind_summary_str = build_defect_kind_summary(defects_2y, hinban)
+                defect_kind_summary_str = build_defect_kind_summary(defects_1y, hinban)
 
                 if hinban in worst_set:
                     info = FIXED_WORST_41ST_INFO.get(hinban, {})
