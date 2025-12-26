@@ -14,10 +14,14 @@ import io
 import json
 import logging
 import os
+import smtplib
+import sys
+import traceback
 import time
 import warnings
 from dataclasses import dataclass
 from datetime import datetime, timedelta, date
+from email.mime.text import MIMEText
 from pathlib import Path
 from typing import Iterable, Optional, Tuple, List, Dict
 import re
@@ -52,6 +56,77 @@ _GEMINI_QUOTA_EXCEEDED = False
 
 # ARAICHAT_ROOM_ID はスクリプト内で個別設定（.env の ARAICHAT_ROOM_ID は参照しない）
 ARAICHAT_ROOM_ID = "40" #24
+
+
+# -----------------------------
+# メール通知設定
+# -----------------------------
+
+# .envファイルから環境変数を読み込み（可能な場合）
+if load_dotenv is not None:
+    load_dotenv()
+
+# メール通知用の設定
+EMAIL_SENDER = os.getenv("EMAIL_SENDER")
+EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
+EMAIL_RECEIVERS = os.getenv("EMAIL_RECEIVERS", "").split(",") if os.getenv("EMAIL_RECEIVERS") else []
+SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.office365.com")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+
+
+def send_error_email(error_info: str) -> None:
+    """
+    エラー発生時に指定されたアカウントへメールを送信する関数
+    
+    Args:
+        error_info: エラー詳細情報
+    """
+    # メール設定が不完全な場合は送信をスキップ
+    if not EMAIL_SENDER or not EMAIL_PASSWORD or not EMAIL_RECEIVERS:
+        logging.warning("メール設定が不完全なため、エラー通知メールを送信できません")
+        return
+    
+    try:
+        # プログラム名とファイルパスを取得
+        program_name = os.path.basename(sys.argv[0])
+        file_path = os.path.abspath(sys.argv[0])
+        
+        # 件名にプログラム名を追記
+        subject = f"【エラー通知】{program_name} 実行中にエラーが発生しました"
+        
+        # 本文にプログラム名とファイルパスを追記
+        body = f"""
+お疲れ様です。
+
+Pythonスクリプトの実行中にエラーが発生しました。
+下記に詳細を記載します。
+
+---
+プログラム名: {program_name}
+
+ファイルパス: {file_path}
+
+日時: {datetime.now().strftime('%Y/%m/%d %H:%M:%S')}
+
+エラー詳細:
+{error_info}
+---
+
+お手数ですが、ご確認をお願いします。
+"""
+        msg = MIMEText(body, "plain", "utf-8")
+        msg["Subject"] = subject
+        msg["From"] = EMAIL_SENDER
+        msg["To"] = ", ".join(EMAIL_RECEIVERS)
+
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()
+            server.login(EMAIL_SENDER, EMAIL_PASSWORD)
+            server.sendmail(EMAIL_SENDER, EMAIL_RECEIVERS, msg.as_string())
+        logging.info("エラー通知メールを送信しました。")
+
+    except Exception as e:
+        logging.error(f"メール送信中にエラーが発生しました: {e}")
 
 
 # -----------------------------
@@ -1548,7 +1623,9 @@ def main(argv: Optional[Iterable[str]] = None) -> None:
         if not ok:
             return
     except Exception as e:
+        error_detail = traceback.format_exc()
         logging.exception("failed to generate dashboard: %s", e)
+        send_error_email(error_detail)
         raise
 
 
