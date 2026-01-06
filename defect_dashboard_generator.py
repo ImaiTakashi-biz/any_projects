@@ -55,7 +55,7 @@ _GEMINI_QUOTA_EXCEEDED = False
 # -----------------------------
 
 # ARAICHAT_ROOM_ID はスクリプト内で個別設定（.env の ARAICHAT_ROOM_ID は参照しない）
-ARAICHAT_ROOM_ID = "40" #24
+ARAICHAT_ROOM_ID = "24" #40
 
 
 # -----------------------------
@@ -229,6 +229,41 @@ def configure_gemini() -> None:
     genai.configure(api_key=api_key)
 
 
+def anonymize_for_gemini(
+    part_number: str,
+    part_name: str,
+    customer: str,
+    use_anonymization: bool = True
+) -> Tuple[str, str, str]:
+    """
+    Gemini API送信用に識別情報を匿名化
+    
+    Args:
+        part_number: 品番
+        part_name: 品名
+        customer: 客先名
+        use_anonymization: 匿名化を有効にするか（デフォルト: True）
+    
+    Returns:
+        Tuple[str, str, str]: (匿名化された品番, 匿名化された品名, 匿名化された客先名)
+    """
+    if not use_anonymization:
+        return part_number, part_name, customer
+    
+    # 品番: ハッシュ化（一意性を保持しつつ匿名化）
+    part_hash = hashlib.md5(part_number.encode("utf-8")).hexdigest()[:8]
+    anonymized_part = f"品番_{part_hash}"
+    
+    # 品名: 汎用名に置換（文脈理解のため汎用的な名称を使用）
+    anonymized_name = "精密加工部品"
+    
+    # 客先名: ハッシュ化（一意性を保持しつつ匿名化）
+    customer_hash = hashlib.md5(customer.encode("utf-8")).hexdigest()[:8]
+    anonymized_customer = f"顧客_{customer_hash}"
+    
+    return anonymized_part, anonymized_name, anonymized_customer
+
+
 def build_worst_part_prompt_for_term(
     term_info: TermInfo,
     part_number: str,
@@ -241,7 +276,13 @@ def build_worst_part_prompt_for_term(
     today_ng: int,
     today_rate: float,
     today_defect_kinds: str,
+    use_anonymization: bool = True,
 ) -> str:
+    # 匿名化の適用
+    anonymized_part, anonymized_name, anonymized_customer = anonymize_for_gemini(
+        part_number, part_name, customer, use_anonymization
+    )
+    
     term_label = f"{term_info.term_number}期（{term_info.start_date:%Y/%m/%d}〜{term_info.end_date:%Y/%m/%d}）"
     worst_label = f"{term_info.term_number}期ワースト品番"
     return f"""
@@ -253,9 +294,9 @@ def build_worst_part_prompt_for_term(
 
 ---
 【対象】
-品番: {part_number}
-品名: {part_name}
-客先: {customer}
+品番: {anonymized_part}
+品名: {anonymized_name}
+客先: {anonymized_customer}
 主な不具合: {major_defects}
 
 【過去1年の傾向】
@@ -409,7 +450,13 @@ def build_general_part_prompt(
     today_ng: int,
     today_rate: float,
     today_defect_kinds: str,
+    use_anonymization: bool = True,
 ) -> str:
+    # 匿名化の適用
+    anonymized_part, anonymized_name, anonymized_customer = anonymize_for_gemini(
+        part_number, part_name, customer, use_anonymization
+    )
+    
     return f"""
 以下は、当社（精密加工部品メーカー）における対象品番の
 過去1年データと昨日の不具合データです。
@@ -419,9 +466,9 @@ def build_general_part_prompt(
 
 ---
 【対象】
-品番: {part_number}
-品名: {part_name}
-客先: {customer}
+品番: {anonymized_part}
+品名: {anonymized_name}
+客先: {anonymized_customer}
 
 【過去1年の傾向】
 {trend_table}
@@ -1454,11 +1501,18 @@ def generate_dashboard(run_date: datetime, cfg: Config) -> bool:
             model_name = os.environ.get("GEMINI_MODEL")
             max_parts = int(os.environ.get("GEMINI_MAX_PARTS", "15"))
             request_interval_seconds = float(os.environ.get("GEMINI_REQUEST_INTERVAL_SECONDS", "12"))
+            # 匿名化設定（デフォルト: True = 有効）
+            use_anonymization = os.environ.get("GEMINI_ANONYMIZE", "true").lower() in ("true", "1", "yes", "on")
             cache = load_gemini_comment_cache(cfg.output_dir)
 
             if not model_name:
                 ai_status = "Geminiモデル未設定のためAIコメントを生成できません。（.env に GEMINI_MODEL を設定してください）"
                 raise RuntimeError("GEMINI_MODEL not set")
+            
+            if use_anonymization:
+                logging.info("Gemini API送信時の識別情報匿名化が有効です（品番・品名・客先名を匿名化）")
+            else:
+                logging.info("Gemini API送信時の識別情報匿名化が無効です（元の情報を送信）")
 
             all_today_hinbans = select_hinbans_for_ai(today_summary, worst_set, max_parts=max_parts)
 
@@ -1498,6 +1552,7 @@ def generate_dashboard(run_date: datetime, cfg: Config) -> bool:
                         today_ng=today_ng,
                         today_rate=today_rate,
                         today_defect_kinds=today_defect_kinds,
+                        use_anonymization=use_anonymization,
                     )
                 else:
                     prompt = build_general_part_prompt(
@@ -1510,6 +1565,7 @@ def generate_dashboard(run_date: datetime, cfg: Config) -> bool:
                         today_ng=today_ng,
                         today_rate=today_rate,
                         today_defect_kinds=today_defect_kinds,
+                        use_anonymization=use_anonymization,
                     )
 
                 cache_key = _gemini_cache_key(run_date, model_name=model_name, hinban=hinban, prompt=prompt)
