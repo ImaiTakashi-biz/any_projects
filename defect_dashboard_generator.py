@@ -55,7 +55,7 @@ _GEMINI_QUOTA_EXCEEDED = False
 # -----------------------------
 
 # ARAICHAT_ROOM_ID はスクリプト内で個別設定（.env の ARAICHAT_ROOM_ID は参照しない）
-ARAICHAT_ROOM_ID = "24" #40
+ARAICHAT_ROOM_ID = "40" #24
 
 
 # -----------------------------
