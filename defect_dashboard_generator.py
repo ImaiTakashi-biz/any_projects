@@ -1323,6 +1323,7 @@ INLINE_TEMPLATE = r"""
         </tbody>
       </table>
       <div class="muted">ワースト製品: {{ worst_lot_count }}ロット（不具合なし含む） / サマリー: {{ normal_lot_count }}ロット（不良率1%超）</div>
+      <div class="muted" style="font-size:11px;">※AIコメントの不良率は1%未満のロットも含む全ロット合計で計算しています（カード表示は不良率1%以上のロットのみ）。</div>
     </div>
 
   </main>
