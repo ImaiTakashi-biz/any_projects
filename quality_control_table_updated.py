@@ -11,6 +11,7 @@ import traceback
 import os
 import sys
 from dotenv import load_dotenv
+import re
 
 # .envファイルから環境変数を読み込み
 load_dotenv()
@@ -168,22 +169,78 @@ try:
                 row[i] = False
     sh_pic.update(values=values, range_name="V2")
 
-    # 外注当日出荷品・メッキ上がり品等データ読込み、書込み AG3:AM22
-    cell_range = 'AG3:AM22'
+    # 表面処理品データ読込み、書込み AI3:AQ22
+    cell_range = 'AI3:AQ22'
     data3 = sh_pic.get(cell_range)
-    data3 = [row for row in data3 if row]
-    data3 = [row for row in data3 if len(row) > 6 and row[6] != 'TRUE']
-    sh_pic.update(values=data3, range_name="AG3")
-    cell_range = 'AM3:AM22'
-    data4 = sh_pic.get(cell_range)
-    for row_index, row in enumerate(data4):
-        for col_index, cell_value in enumerate(row):
-            if cell_value == 'FALSE':
-                data4[row_index][col_index] = False
-    sh_pic.update(values=data4, range_name=cell_range)
+    
+    # AO列の数式を事前に取得して保持（AO列はインデックス6）
+    ao_formulas = []
+    for row_num in range(3, 23):  # 3行目から22行目まで
+        ao_cell = sh_pic.acell(f'AO{row_num}', value_render_option='FORMULA')
+        ao_formulas.append(ao_cell.value if ao_cell.value else '')
+    
+    # 空行を除外する前に、各行の実際の行番号を記録
+    data3_with_row_nums = []
+    actual_row_nums = []  # data3内のインデックス -> 実際のスプレッドシートの行番号
+    for i, row in enumerate(data3):
+        if row:  # 空行でない場合
+            data3_with_row_nums.append(row)
+            actual_row_nums.append(3 + i)  # 実際の行番号（3行目起点）
+    
+    # フィルタリング（9列目が'TRUE'でない行を保持）
+    filtered_data = []
+    row_mapping = []  # フィルタリング後のインデックス -> 実際のスプレッドシートの行番号
+    for i, row in enumerate(data3_with_row_nums):
+        if len(row) > 8 and row[8] != 'TRUE':
+            filtered_data.append(row)
+            row_mapping.append(actual_row_nums[i])  # 実際の行番号を記録
+    
+    if filtered_data:
+        # AI列からAN列までを更新（AO列を除く、6列分）
+        ai_to_an_data = [[row[j] if j < len(row) else '' for j in range(6)] for row in filtered_data]
+        end_row = 3 + len(ai_to_an_data) - 1
+        sh_pic.update(values=ai_to_an_data, range_name=f"AI3:AN{end_row}")
+        
+        # AO列の数式を復元（行番号を調整）
+        ao_formulas_to_restore = []
+        for new_idx, old_row_num in enumerate(row_mapping):
+            # old_row_numは実際のスプレッドシートの行番号（3-22の範囲）
+            # 新しい行番号 = 3 + new_idx
+            new_row_num = 3 + new_idx
+            
+            # ao_formulasのインデックス = old_row_num - 3
+            formula_idx = old_row_num - 3
+            if 0 <= formula_idx < len(ao_formulas) and ao_formulas[formula_idx]:
+                formula = ao_formulas[formula_idx]
+                # 数式内の行番号を新しい行番号に置換（例: AN3 -> AN4など）
+                # 元の行番号（old_row_num）を新しい行番号（new_row_num）に置換
+                # 文字列置換で確実に置換（AN3, AN13, AN23なども正しく処理）
+                updated_formula = formula.replace(f'AN{old_row_num}', f'AN{new_row_num}')
+                ao_formulas_to_restore.append([updated_formula])
+            else:
+                ao_formulas_to_restore.append([''])
+        
+        if ao_formulas_to_restore:
+            end_row = 3 + len(ao_formulas_to_restore) - 1
+            sh_pic.update(values=ao_formulas_to_restore, range_name=f"AO3:AO{end_row}", value_input_option='USER_ENTERED')
+        
+        # AP列からAQ列までを更新
+        ap_to_aq_data = [[row[7] if len(row) > 7 else '', row[8] if len(row) > 8 else ''] for row in filtered_data]
+        if ap_to_aq_data:
+            end_row = 3 + len(ap_to_aq_data) - 1
+            sh_pic.update(values=ap_to_aq_data, range_name=f"AP3:AQ{end_row}")
+        
+        # AQ列の'FALSE'をFalseに変換
+        cell_range = f'AQ3:AQ{3 + len(filtered_data) - 1}'
+        data4 = sh_pic.get(cell_range)
+        for row_index, row in enumerate(data4):
+            for col_index, cell_value in enumerate(row):
+                if cell_value == 'FALSE':
+                    data4[row_index][col_index] = False
+        sh_pic.update(values=data4, range_name=cell_range)
 
     # 在庫洗浄品・二次工程完了品
-    cell_range = 'AM24:AM47'
+    cell_range = 'AQ24:AQ47'
     data5 = sh_pic.get(cell_range)
     for row_index, row in enumerate(data5):
         for col_index, cell_value in enumerate(row):
@@ -258,7 +315,7 @@ try:
     sh_data.update_cells(cell_list)
     sh_data.update(values=combined_list, range_name="A16")
 
-    cell_range = 'AE3:AE57'
+    cell_range = 'AG3:AG57'
     data8 = sh_pic.get(cell_range)
     for row_index, row in enumerate(data8):
         for col_index, cell_value in enumerate(row):
@@ -268,16 +325,16 @@ try:
                 data8[row_index][col_index] = False
     sh_pic.update(values=data8, range_name=cell_range)
 
-    cell_range = 'AD3:AD57'
+    cell_range = 'AF3:AF57'
     sh_pic.batch_clear([cell_range])
     for i in range(len(name_list)):
-        sh_pic.update_cell(3 + i, 30, name_list[i])
+        sh_pic.update_cell(3 + i, 32, name_list[i])
 
 
-    # 外注当日出荷品・メッキ上がり品等データ_数式設定 AJ3:AK22
+    # 表面処理品データ_数式設定 AL3:AM22
     start_row, end_row = 3, 22
-    aj_formulas = [f"=XLOOKUP($AI{row},'製品マスタ'!$B:$B,'製品マスタ'!$C:$C,\"\",FALSE)" for row in range(start_row, end_row + 1)]
-    ak_formulas = [f"=XLOOKUP($AI{row},'製品マスタ'!$B:$B,'製品マスタ'!$A:$A,\"\",FALSE)" for row in range(start_row, end_row + 1)]
+    al_formulas = [f"=XLOOKUP($AK{row},'製品マスタ'!$B:$B,'製品マスタ'!$C:$C,\"\",FALSE)" for row in range(start_row, end_row + 1)]
+    am_formulas = [f"=XLOOKUP($AK{row},'製品マスタ'!$B:$B,'製品マスタ'!$A:$A,\"\",FALSE)" for row in range(start_row, end_row + 1)]
 
     # 数式をセル範囲に入力
     def set_formulas_in_batches(sh_pic, start_cell, formulas):
@@ -289,11 +346,11 @@ try:
             time.sleep(1)  # API呼び出し制限を避けるためのウェイト
 
     # AJ列とAK列の数式をバッチ処理で入力
-    set_formulas_in_batches(sh_pic, 'AJ', aj_formulas)
-    set_formulas_in_batches(sh_pic, 'AK', ak_formulas)
+    set_formulas_in_batches(sh_pic, 'AL', al_formulas)
+    set_formulas_in_batches(sh_pic, 'AM', am_formulas)
 
     # セル範囲AL24:AL47のデータをクリア
-    cell_range_clear = 'AL24:AL47'
+    cell_range_clear = 'AP24:AP47'
     empty_data = [[""] * len(data5[0]) for _ in range(len(data5))]
     sh_pic.update(values=empty_data, range_name=cell_range_clear)
 
@@ -304,6 +361,12 @@ try:
     # T2:T36のデータをコピー
     data_t = sh_next.get("T2:T36")
     sh_pic.update(range_name="T2:T36", values=data_t, value_input_option="USER_ENTERED")
+
+    # 列の表示形式を日付（yyyy/mm/dd）に設定
+    date_format = {"numberFormat": {"type": "DATE", "pattern": "yyyy/mm/dd"}}
+    date_columns = ["Z:Z", "AD:AD", "AE:AE", "AJ:AJ", "AN:AN", "AO:AO"]
+    for col_range in date_columns:
+        sh_pic.format(col_range, date_format)
 
     print("完了しました。")
 

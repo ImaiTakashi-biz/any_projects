@@ -24,15 +24,15 @@ ACCESS_DB_PATH = r"\\192.168.1.200\共有\品質保証課\外観検査記録\外
 TABLE_NAME = "t_外観検査集計"  # 実績テーブル名
 EXPORT_CSV_PATH = r"\\192.168.1.200\共有\dev_tools\外観検査振分支援システム\master\スキルマスタ_auto.csv"  # スキルマスタCSVの出力先
 
-# 製品マスタ（Excel）の自動更新設定
+# ========= 製品マスタ（Excel）の自動更新設定 =========
 PRODUCT_MASTER_XLSX_PATH = r"\\192.168.1.200\共有\dev_tools\外観検査振分支援システム\master\製品マスタ_auto.xlsx"  # このExcelを自動更新
 PRODUCT_MASTER_SHEET_NAME = "Sheet1"
 PRODUCT_MASTER_AVG_COL = "平均 / (作業時間按分)1個当たりの検査時間×60"
 
 # 検査回数 → スキル のしきい値
-HIGH_SKILL_MIN = 11   # 11回以上 → スキル1
-MID_SKILL_MIN = 5     # 5〜10回   → スキル2
-LOW_SKILL_MIN = 1     # 1〜4回    → スキル3
+HIGH_SKILL_MIN = 10   # 10回以上 → スキル1
+MID_SKILL_MIN = 5     # 5〜9回   → スキル2
+LOW_SKILL_MIN = 3     # 3〜4回    → スキル3
 
 # どこまでの期間を見るか（Noneなら全期間）
 USE_PERIOD_DAYS = None   # 直近365日を見る例 / Noneなら全期間
