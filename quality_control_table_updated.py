@@ -31,6 +31,9 @@ EMAIL_RECEIVERS = os.getenv("EMAIL_RECEIVERS", "").split(",") if os.getenv("EMAI
 SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.office365.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 
+# 数値検査記録 Access DB（検査員名取得用）
+NUMERICAL_INSPECTION_DB_PATH = r"\\192.168.1.200\共有\品質保証課\☆数値検査\数値検査記録.accdb"
+
 # Google API設定の存在確認
 if not GOOGLE_SERVICE_ACCOUNT_KEY_FILE:
     raise ValueError("GOOGLE_SERVICE_ACCOUNT_KEY_FILE が .env ファイルに設定されていません")
@@ -115,6 +118,31 @@ Pythonスクリプトの実行中にエラーが発生しました。
     except Exception as e:
         print(f"メール送信中にエラーが発生しました: {e}")
 
+
+def _normalize_date_for_match(value):
+    """
+    スプレッドシート／Access の指示日を比較用に日付に正規化する。
+    None/空は None。datetime は日付部分のみ、文字列は yyyy/mm/dd 等を解釈。
+    """
+    if value is None or value == "":
+        return None
+    if isinstance(value, datetime.datetime):
+        return value.date()
+    if isinstance(value, datetime.date):
+        return value
+    if isinstance(value, str):
+        value = value.strip()
+        if not value:
+            return None
+        s = value[:10]
+        for fmt in ("%Y/%m/%d", "%Y-%m-%d"):
+            try:
+                return datetime.datetime.strptime(s, fmt).date()
+            except ValueError:
+                continue
+    return None
+
+
 # --- メイン処理 ---
 try:
     # 認証情報を設定（環境変数から読み込み）
@@ -172,13 +200,13 @@ try:
     # 表面処理品データ読込み、書込み AI3:AQ22
     cell_range = 'AI3:AQ22'
     data3 = sh_pic.get(cell_range)
-    
+
     # AO列の数式を事前に取得して保持（AO列はインデックス6）
     ao_formulas = []
     for row_num in range(3, 23):  # 3行目から22行目まで
         ao_cell = sh_pic.acell(f'AO{row_num}', value_render_option='FORMULA')
         ao_formulas.append(ao_cell.value if ao_cell.value else '')
-    
+
     # 空行を除外する前に、各行の実際の行番号を記録
     data3_with_row_nums = []
     actual_row_nums = []  # data3内のインデックス -> 実際のスプレッドシートの行番号
@@ -186,7 +214,7 @@ try:
         if row:  # 空行でない場合
             data3_with_row_nums.append(row)
             actual_row_nums.append(3 + i)  # 実際の行番号（3行目起点）
-    
+
     # フィルタリング（9列目が'TRUE'でない行を保持）
     filtered_data = []
     row_mapping = []  # フィルタリング後のインデックス -> 実際のスプレッドシートの行番号
@@ -194,42 +222,40 @@ try:
         if len(row) > 8 and row[8] != 'TRUE':
             filtered_data.append(row)
             row_mapping.append(actual_row_nums[i])  # 実際の行番号を記録
-    
+
     if filtered_data:
         # AI列からAN列までを更新（AO列を除く、6列分）
         ai_to_an_data = [[row[j] if j < len(row) else '' for j in range(6)] for row in filtered_data]
         end_row = 3 + len(ai_to_an_data) - 1
         sh_pic.update(values=ai_to_an_data, range_name=f"AI3:AN{end_row}")
-        
+
         # AO列の数式を復元（行番号を調整）
         ao_formulas_to_restore = []
         for new_idx, old_row_num in enumerate(row_mapping):
             # old_row_numは実際のスプレッドシートの行番号（3-22の範囲）
             # 新しい行番号 = 3 + new_idx
             new_row_num = 3 + new_idx
-            
+
             # ao_formulasのインデックス = old_row_num - 3
             formula_idx = old_row_num - 3
             if 0 <= formula_idx < len(ao_formulas) and ao_formulas[formula_idx]:
                 formula = ao_formulas[formula_idx]
                 # 数式内の行番号を新しい行番号に置換（例: AN3 -> AN4など）
-                # 元の行番号（old_row_num）を新しい行番号（new_row_num）に置換
-                # 文字列置換で確実に置換（AN3, AN13, AN23なども正しく処理）
                 updated_formula = formula.replace(f'AN{old_row_num}', f'AN{new_row_num}')
                 ao_formulas_to_restore.append([updated_formula])
             else:
                 ao_formulas_to_restore.append([''])
-        
+
         if ao_formulas_to_restore:
             end_row = 3 + len(ao_formulas_to_restore) - 1
             sh_pic.update(values=ao_formulas_to_restore, range_name=f"AO3:AO{end_row}", value_input_option='USER_ENTERED')
-        
+
         # AP列からAQ列までを更新
         ap_to_aq_data = [[row[7] if len(row) > 7 else '', row[8] if len(row) > 8 else ''] for row in filtered_data]
         if ap_to_aq_data:
             end_row = 3 + len(ap_to_aq_data) - 1
             sh_pic.update(values=ap_to_aq_data, range_name=f"AP3:AQ{end_row}")
-        
+
         # AQ列の'FALSE'をFalseに変換
         cell_range = f'AQ3:AQ{3 + len(filtered_data) - 1}'
         data4 = sh_pic.get(cell_range)
@@ -257,7 +283,7 @@ try:
     conn_str = (
         r'Driver={Microsoft Access Driver (*.mdb, *.accdb)};'
         r'DBQ=\\192.168.1.200\共有\生産管理課\現品票印刷.accdb'
-        )
+    )
     conn = pyo.connect(conn_str)
     cur = conn.cursor()
     for table in cur.tables(tableType='TABLE'):
@@ -330,7 +356,6 @@ try:
     for i in range(len(name_list)):
         sh_pic.update_cell(3 + i, 32, name_list[i])
 
-
     # 表面処理品データ_数式設定 AL3:AM22
     start_row, end_row = 3, 22
     al_formulas = [f"=XLOOKUP($AK{row},'製品マスタ'!$B:$B,'製品マスタ'!$C:$C,\"\",FALSE)" for row in range(start_row, end_row + 1)]
@@ -367,6 +392,85 @@ try:
     date_columns = ["Z:Z", "AD:AD", "AE:AE", "AJ:AJ", "AN:AN", "AO:AO"]
     for col_range in date_columns:
         sh_pic.format(col_range, date_format)
+
+    # --- データ Sheet A130:C250 から検査員名を取得し I 列に書き込む ---
+    cell_range_inspector = "A130:C250"
+    data_inspector = sh_data.get(cell_range_inspector)
+    rows_with_row_num = []
+    for i, row in enumerate(data_inspector):
+        sheet_row_num = 130 + i
+        a = str(row[0]).strip() if row and len(row) > 0 and row[0] is not None else ""
+        b = str(row[1]).strip() if row and len(row) > 1 and row[1] is not None else ""
+        c = str(row[2]).strip() if row and len(row) > 2 and row[2] is not None else ""
+        rows_with_row_num.append((sheet_row_num, a, b, c))
+
+    conn_str_numerical = (
+        r"Driver={Microsoft Access Driver (*.mdb, *.accdb)};"
+        f"DBQ={NUMERICAL_INSPECTION_DB_PATH}"
+    )
+    conn_numerical = pyo.connect(conn_str_numerical)
+    cur_numerical = conn_numerical.cursor()
+
+    cur_numerical.execute("SELECT 号機, 指示日, 品番, 生産ロットID FROM t_現品票履歴")
+    fuken_hist = cur_numerical.fetchall()
+
+    cur_numerical.execute("SELECT 生産ロットID, 検査員ID FROM t_数値検査記録")
+    inspection_rec = cur_numerical.fetchall()
+
+    cur_numerical.execute("SELECT 検査員ID, 検査員名 FROM t_数値検査員マスタ")
+    inspector_master = cur_numerical.fetchall()
+
+    cur_numerical.close()
+    conn_numerical.close()
+
+    # (号機, 指示日(date), 品番) -> 生産ロットID
+    fuken_by_key = {}
+    # 号機が空の場合用: (指示日(date), 品番) -> 生産ロットID（先頭1件）
+    fuken_by_date_hinban = {}
+    for r in fuken_hist:
+        goki, shiji, hinban = r[0], r[1], r[2]
+        lot_id = r[3]
+        d = _normalize_date_for_match(shiji)
+        key = (str(goki).strip() if goki else "", d, str(hinban).strip() if hinban else "")
+        if key not in fuken_by_key:
+            fuken_by_key[key] = lot_id
+        key2 = (d, str(hinban).strip() if hinban else "")
+        if key2 not in fuken_by_date_hinban:
+            fuken_by_date_hinban[key2] = lot_id
+
+    lot_to_inspector_id = {r[0]: r[1] for r in inspection_rec if r[0] is not None}
+
+    inspector_id_to_name = {}
+    for r in inspector_master:
+        iid, name = r[0], r[1]
+        if iid is not None:
+            inspector_id_to_name[iid] = name if name else ""
+
+    i_column_values = []
+    for sheet_row_num, goki, shiji_str, hinban in rows_with_row_num:
+        inspector_name = ""
+        target_date = _normalize_date_for_match(shiji_str)
+        if goki:
+            # 号機あり: 号機・指示日・品番で照合
+            key = (goki, target_date, hinban)
+            if target_date is not None and key in fuken_by_key:
+                lot_id = fuken_by_key[key]
+                insp_id = lot_to_inspector_id.get(lot_id)
+                if insp_id is not None:
+                    inspector_name = inspector_id_to_name.get(insp_id, "") or ""
+        else:
+            # 号機が空: 指示日・品番のみで照合し、先頭1件の検査員IDを取得
+            if target_date is not None and hinban:
+                key2 = (target_date, hinban)
+                if key2 in fuken_by_date_hinban:
+                    lot_id = fuken_by_date_hinban[key2]
+                    insp_id = lot_to_inspector_id.get(lot_id)
+                    if insp_id is not None:
+                        inspector_name = inspector_id_to_name.get(insp_id, "") or ""
+        i_column_values.append([inspector_name])
+
+    if i_column_values:
+        sh_data.update(values=i_column_values, range_name="I130:I250")
 
     print("完了しました。")
 
