@@ -12,7 +12,7 @@ import os
 import sys
 from dotenv import load_dotenv
 import re
-from win32com.client import Dispatch
+import subprocess
 
 # .envファイルから環境変数を読み込み
 load_dotenv()
@@ -400,13 +400,21 @@ try:
         for col_range in date_columns:
             sh_pic.format(col_range, date_format)
 
-    # Access で UpdateData を実行してから検査員名取得に進む
-    acshukka = r"\\Landisk-6ac78a\共有\品質保証課\☆数値検査\数値検査記録.accdb"
-    accapp = Dispatch("Access.Application")
-    accapp.OpenCurrentDatabase(acshukka)
-    accapp.Visible = True
-    print(accapp.Run("UpdateData"))
-    accapp.Quit()
+    # Access で UpdateData を実行（Access_suchikensa_Update.py を subprocess で起動）
+    _access_script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Access_suchikensa_Update.py")
+    try:
+        result = subprocess.run(
+            [sys.executable, _access_script_path],
+            timeout=120,
+            capture_output=False,
+        )
+        if result.returncode != 0:
+            print("※ Access UpdateData はスキップし、検査員名取得処理に進みます。")
+    except subprocess.TimeoutExpired:
+        print("※ Access UpdateData がタイムアウトしました。検査員名取得処理に進みます。")
+    except Exception as e:
+        print(f"※ Access UpdateData でエラー: {e}")
+        print("※ 検査員名取得処理に進みます。")
 
     # --- データ Sheet A130:C250 から検査員名を取得し I 列に書き込む ---
     cell_range_inspector = "A130:C250"
